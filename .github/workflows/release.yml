@@ -1,0 +1,54 @@
+# Neue Version veröffentlichen – eine der Varianten:
+#   a) Webseite: Releases → "Draft a new release" → Tag z. B. v1.0.1 → "Publish release"
+#   b) Terminal: git tag v1.0.1 && git push origin v1.0.1
+#   c) Nachträglich für ein bestehendes Release: Actions → Release → "Run workflow"
+# GitHub baut dann die Oberfläche und hängt jukebux.tar.gz an das Release.
+# Die Jukeboxen holen es sich bei der nächsten Sonntagswartung automatisch.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Version (Tag), z. B. v1.0.1'
+        required: true
+
+permissions:
+  contents: write
+
+# Beide Auslöser können gleichzeitig kommen – nur einmal bauen
+concurrency:
+  group: release-${{ inputs.tag || github.event.release.tag_name || github.ref_name }}
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    env:
+      TAG: ${{ inputs.tag || github.event.release.tag_name || github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Paket bauen
+        run: bash tools/build-release.sh "$TAG"
+
+      - name: Paket an das Release hängen
+        run: |
+          FILES="release/jukebux.tar.gz release/VERSION release/install.sh"
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" $FILES --clobber
+          else
+            gh release create "$TAG" $FILES --title "JUKEBÜX ${TAG#v}" --generate-notes
+          fi
