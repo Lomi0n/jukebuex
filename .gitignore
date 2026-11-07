@@ -1,0 +1,16 @@
+# Schlüssel und persönliche Daten – gehören NIE ins Repository
+backend/config.env
+backend/data.json
+backend/data.tmp
+backend/spotify_token.json
+backend/*.bak-*
+sounds/
+system/
+
+# Erzeugtes
+backend/.venv/
+__pycache__/
+frontend/node_modules/
+frontend/dist/
+release/
+*.log
