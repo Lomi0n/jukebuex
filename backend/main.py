@@ -1591,13 +1591,24 @@ def last_maintenance():
         return {"time": None}
 
 SYSTEMCTL = "/usr/bin/systemctl"
+# Root-Hilfsskript vom Installer (funktioniert mit sudo und sudo-rs gleichermassen)
+SYSTEM_HELPER = Path("/usr/local/sbin/jukebox-system")
+
+
+def privileged(action):
+    """Systembefehl ohne Passwort (siehe /etc/sudoers.d/jukebox)."""
+    if SYSTEM_HELPER.exists():
+        return f"sudo -n {SYSTEM_HELPER} {action}"
+    return f"sudo -n {SYSTEMCTL} {action}" + (" jukebox" if action in ("start", "stop", "restart") else "")
+
+
 SYSTEM_ACTIONS = {
     # Vollbild schliessen, Server läuft weiter
-    "exit-kiosk": "pkill -f '[j]ukebox-chrome'",
+    "exit-kiosk": lambda: "pkill -f '[j]ukebox-chrome'",
     # Vollbild und Server beenden
-    "stop": f"pkill -f '[j]ukebox-chrome'; sudo -n {SYSTEMCTL} stop jukebox",
-    "reboot": f"sudo -n {SYSTEMCTL} reboot",
-    "poweroff": f"sudo -n {SYSTEMCTL} poweroff",
+    "stop": lambda: f"pkill -f '[j]ukebox-chrome'; {privileged('stop')}",
+    "reboot": lambda: privileged("reboot"),
+    "poweroff": lambda: privileged("poweroff"),
 }
 
 
@@ -1614,7 +1625,7 @@ def system_action(action: str, request: Request):
     command = SYSTEM_ACTIONS.get(action)
     if not command:
         raise HTTPException(404, "Unbekannte Aktion")
-    run_later(command)
+    run_later(command())
     return {"status": "ok", "action": action}
 
 

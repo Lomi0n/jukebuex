@@ -4,7 +4,10 @@ BASE="http://localhost:8000"
 PROFILE="$HOME/.config/jukebox-chrome"
 
 # Server starten, falls er beendet wurde (z. B. über das Wartungsmenü)
-curl -fs "$BASE/api/health" > /dev/null || sudo -n /usr/bin/systemctl start jukebox
+if ! curl -fs "$BASE/api/health" > /dev/null; then
+  if [ -x /usr/local/sbin/jukebox-system ]; then sudo -n /usr/local/sbin/jukebox-system start
+  else sudo -n /usr/bin/systemctl start jukebox; fi
+fi
 
 # Warten, bis der Server bereit ist
 for i in $(seq 1 60); do

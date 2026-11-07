@@ -66,12 +66,21 @@ ask() {
 if [ "$UPDATE" = 0 ]; then
   echo
   bold "JUKEBÜX – Installation"
+  # Unterstützt: Ubuntu 24.04 und 26.04 sowie Ableger davon (z. B. AnduinOS, Zorin, Mint)
   . /etc/os-release 2>/dev/null || true
-  if [ "${ID:-}" != ubuntu ]; then
-    warn "Getestet ist die JUKEBÜX mit Ubuntu 24.04 – hier läuft ${PRETTY_NAME:-ein unbekanntes System}."
+  case "${UBUNTU_CODENAME:-${VERSION_CODENAME:-}}" in
+    noble)    OS_BASE="Ubuntu 24.04" ;;
+    resolute) OS_BASE="Ubuntu 26.04" ;;
+    *)        OS_BASE="" ;;
+  esac
+  if [ -n "$OS_BASE" ]; then
+    if [ "${ID:-}" = ubuntu ]; then ok "$OS_BASE erkannt"; else ok "${PRETTY_NAME:-$ID} (Basis $OS_BASE) erkannt"; fi
+  elif [ "${ID:-}" = ubuntu ] || echo " ${ID_LIKE:-} " | grep -q " ubuntu "; then
+    warn "Unterstützt sind Ubuntu 24.04 und 26.04 – hier läuft ${PRETTY_NAME:-ein Ubuntu-System}."
+    [ "$(ask 'Trotzdem fortfahren?' 1)" = 1 ] || exit 1
+  else
+    warn "Die JUKEBÜX braucht Ubuntu 24.04/26.04 oder einen Ableger – hier läuft ${PRETTY_NAME:-ein unbekanntes System}."
     [ "$(ask 'Trotzdem fortfahren?' 0)" = 1 ] || exit 1
-  elif [ "${VERSION_ID:-}" != "24.04" ]; then
-    warn "Getestet mit Ubuntu 24.04 – hier läuft Ubuntu ${VERSION_ID:-?}. Sollte trotzdem funktionieren."
   fi
   if [ -f "$JB/backend/main.py" ]; then
     echo "   Bestehende JUKEBÜX gefunden – sie wird aktualisiert. Einstellungen, Favoriten,"
@@ -95,7 +104,12 @@ if [ "$UPDATE" = 0 ]; then
   say "1/8 Systempakete installieren"
   sudo apt-get update -q
   sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -q \
-    python3 python3-venv python3-pip curl ca-certificates bluez pulseaudio-utils xdg-user-dirs
+    python3 python3-venv python3-pip curl ca-certificates bluez
+  # Nützlich, aber nicht zwingend (Paketnamen können je nach Version abweichen)
+  for pkg in pulseaudio-utils xdg-user-dirs; do
+    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -q "$pkg" > /dev/null 2>&1 || warn "Paket $pkg nicht verfügbar – übersprungen"
+  done
+  command -v pactl > /dev/null || warn "pactl fehlt – der Lautsprecher wird nicht automatisch als Ausgang gewählt"
   ok "Grundpakete vorhanden"
 
   if [ "$KIOSK" = 1 ]; then
@@ -231,14 +245,18 @@ WantedBy=multi-user.target
 EOF
 ok "Server-Dienst (jukebox.service)"
 
-# Wartungsmenü und automatische Wartung dürfen genau diese Befehle ohne Passwort – sonst nichts
+# Wartungsmenü und automatische Wartung dürfen nur das Hilfsskript ohne Passwort ausführen.
+# Es kennt genau: start/stop/restart jukebox, reboot, poweroff, system-update.
+# Eine einfache Regel ohne Sonderoptionen – funktioniert mit sudo und sudo-rs (Ubuntu 26.04).
+sudo install -m 755 -o root -g root "$SRC/scripts/jukebox-system" /usr/local/sbin/jukebox-system
 TMP_SUDOERS="$(mktemp)"
 cat > "$TMP_SUDOERS" <<EOF
-# JUKEBÜX: Wartungsmenü und automatische Wartung
-Defaults!/usr/bin/apt-get env_keep += "DEBIAN_FRONTEND"
-$(whoami) ALL=(root) NOPASSWD: /usr/bin/systemctl start jukebox, /usr/bin/systemctl stop jukebox, /usr/bin/systemctl restart jukebox, /usr/bin/systemctl reboot, /usr/bin/systemctl poweroff, /usr/bin/apt-get update -q, /usr/bin/apt-get -y -q -o Dpkg\:\:Options\:\:\=--force-confold upgrade
+# JUKEBÜX: Wartungsmenü und automatische Wartung (siehe /usr/local/sbin/jukebox-system)
+$(whoami) ALL=(root) NOPASSWD: /usr/local/sbin/jukebox-system
 EOF
-if sudo visudo -cf "$TMP_SUDOERS" > /dev/null; then
+# sudo-rs prüft mit visudo nur /etc/sudoers – dann das klassische visudo.ws verwenden, falls vorhanden
+VISUDO="$(command -v visudo.ws || command -v visudo || true)"
+if [ -n "$VISUDO" ] && sudo "$VISUDO" -cf "$TMP_SUDOERS" > /dev/null 2>&1; then
   sudo install -m 440 -o root -g root "$TMP_SUDOERS" /etc/sudoers.d/jukebox
   ok "Rechte für Wartungsmenü (/etc/sudoers.d/jukebox)"
 else

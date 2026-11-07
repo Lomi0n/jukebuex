@@ -50,6 +50,21 @@ health() {
   done
   return 1
 }
+# Systembefehle ohne Passwort: über das Hilfsskript des Installers (sudo und sudo-rs),
+# bei älteren Installationen direkt
+HELPER=/usr/local/sbin/jukebox-system
+system() {
+  if [ -x "$HELPER" ]; then
+    $SUDO "$HELPER" "$1"
+  else
+    case "$1" in
+      restart) $SUDO /usr/bin/systemctl restart jukebox ;;
+      reboot) $SUDO /usr/bin/systemctl reboot ;;
+      system-update) $SUDO /usr/bin/apt-get update -q && \
+        $SUDO /usr/bin/apt-get -y -q -o Dpkg::Options::=--force-confold upgrade ;;
+    esac
+  fi
+}
 # Versionsvergleich: ist $1 neuer als $2?
 newer() { [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -1)" = "$1" ]; }
 
@@ -76,8 +91,7 @@ ok "$ARCHIVE ($(du -h "$ARCHIVE" | cut -f1))"
 # ---------- 2. Systempakete (inkl. Google Chrome) ----------
 say "Systempakete aktualisieren"
 export DEBIAN_FRONTEND=noninteractive
-if $SUDO /usr/bin/apt-get update -q && \
-   $SUDO /usr/bin/apt-get -y -q -o Dpkg::Options::=--force-confold upgrade; then
+if system system-update; then
   ok "Systempakete aktuell"
 else
   warn "Systemupdate fehlgeschlagen – weiter mit den übrigen Schritten"
@@ -121,13 +135,13 @@ fi
 
 # ---------- 5. Server neu starten und prüfen ----------
 say "Server neu starten"
-$SUDO /usr/bin/systemctl restart jukebox
+system restart
 if health; then
   ok "Server läuft"
 else
   warn "Server startet nicht – setze Python-Pakete auf den vorherigen Stand zurück"
   "$BACKEND/.venv/bin/pip" install -q -r "$PIP_BEFORE"
-  $SUDO /usr/bin/systemctl restart jukebox
+  system restart
   if health; then
     ok "Server läuft wieder (alter Paketstand)"
   else
@@ -147,7 +161,7 @@ if [ "$AUTO" = 1 ]; then
   # Automatischer Lauf: nur neu starten, wenn das System es verlangt, sonst Vollbild neu laden
   if [ -f /var/run/reboot-required ]; then
     echo "Neustart wegen Systemupdate."
-    sudo -n /usr/bin/systemctl reboot
+    SUDO="sudo -n" system reboot
   else
     "$HOME/.local/bin/jukebox-restart"
   fi
@@ -160,7 +174,7 @@ if [ -f /var/run/reboot-required ]; then
 fi
 echo "Damit die Jukebox auf dem Bildschirm die neue Version lädt, ist ein Neustart am einfachsten."
 if [ "$YES" = 1 ]; then
-  sudo /usr/bin/systemctl reboot
+  system reboot
 else
   read -r -p "Jetzt neu starten? [j/N] " answer
   case "$answer" in

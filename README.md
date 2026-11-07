@@ -15,7 +15,7 @@ Fernbedienung im Browser.
 
 | | |
 |---|---|
-| System | Ubuntu 24.04 Desktop (x86_64) |
+| System | Ubuntu 24.04 oder 26.04 Desktop (x86_64), auch Ableger wie AnduinOS, Zorin OS oder Linux Mint |
 | Spotify | Spotify-**Premium**-Konto und eine eigene, kostenlose Spotify-Entwickler-App (der Assistent erklärt die Schritte) |
 | YouTube | kostenloser API-Schlüssel von Google (optional) |
 | Lautsprecher | Bluetooth-Stereoanlage oder -Box (optional) |

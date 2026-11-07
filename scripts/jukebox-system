@@ -1,0 +1,18 @@
+#!/bin/bash
+# JUKEBÜX: die einzigen Systembefehle, die der Jukebox-Benutzer ohne Passwort ausführen darf
+# (freigegeben in /etc/sudoers.d/jukebox). Gehört root, liegt in /usr/local/sbin.
+# Funktioniert mit dem klassischen sudo und mit sudo-rs (Ubuntu 26.04).
+set -u
+case "${1:-}" in
+  start|stop|restart)
+    exec /usr/bin/systemctl "$1" jukebox ;;
+  reboot|poweroff)
+    exec /usr/bin/systemctl "$1" ;;
+  system-update)
+    export DEBIAN_FRONTEND=noninteractive
+    /usr/bin/apt-get update -q || exit 1
+    exec /usr/bin/apt-get -y -q -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold upgrade ;;
+  *)
+    echo "Erlaubt: start | stop | restart | reboot | poweroff | system-update" >&2
+    exit 2 ;;
+esac
