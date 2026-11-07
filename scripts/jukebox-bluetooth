@@ -1,0 +1,126 @@
+#!/bin/bash
+# JUKEBÜX Bluetooth-Wächter
+#  - hält die Stereoanlage/Soundbar verbunden (versucht es alle 20 s erneut)
+#  - stellt sie als Audioausgang ein, sobald sie verbunden ist
+#  - meldet den Zustand alle 5 s an die Jukebox (Anzeige unten links)
+#  - sucht und koppelt Geräte für den Einrichtungsassistenten
+# Läuft als Benutzerdienst: systemctl --user status jukebox-bluetooth
+# Die Adresse steht in ~/jukebox/backend/config.env als SPEAKER_MAC=AA:BB:CC:DD:EE:FF
+
+CONFIG="$HOME/jukebox/backend/config.env"
+API="http://localhost:8000/api/bluetooth/status"
+TASK_API="http://localhost:8000/api/bluetooth/task"
+RETRY_SECONDS=20
+last_try=0
+
+log() { echo "$(date '+%F %T') $*"; }
+# Beim Herunterfahren sofort aufhören (keine hängenden Bluetooth-Befehle)
+trap 'log "Beendet"; kill $(jobs -p) 2>/dev/null; exit 0' TERM INT
+
+connect() {
+  timeout 5 bluetoothctl power on > /dev/null 2>&1
+  if timeout 20 bluetoothctl connect "$MAC" 2>&1 | grep -q "Connection successful"; then
+    log "Verbunden mit $MAC"
+  else
+    log "Verbinden mit $MAC fehlgeschlagen (ausgeschaltet oder ausser Reichweite?)"
+  fi
+  last_try=$(date +%s)
+}
+
+# Geräteliste für die Einrichtung: eine Zeile pro Gerät "MAC|gekoppelt|audio|Name"
+list_devices() {
+  timeout 5 bluetoothctl devices 2>/dev/null | while read -r _ dev _; do
+    info="$(timeout 5 bluetoothctl info "$dev" 2>/dev/null)"
+    dname="$(echo "$info" | sed -n 's/^[[:space:]]*Name: //p' | head -1 | tr -d '|\r')"
+    paired=no; echo "$info" | grep -q "Paired: yes" && paired=yes
+    audio=no; echo "$info" | grep -qE "Icon: audio|Audio Sink" && audio=yes
+    echo "$dev|$paired|$audio|$dname"
+  done
+}
+
+report_task() {   # report_task ID OK MELDUNG  (Geräteliste über stdin)
+  curl -fs -m 5 -X POST "$TASK_API/$1" --url-query "ok=$2" --url-query "message=$3" \
+    -H 'Content-Type: text/plain' --data-binary @- > /dev/null
+}
+
+run_task() {   # run_task ID AKTION MAC
+  local id="$1" action="$2" mac="$3"
+  timeout 5 bluetoothctl power on > /dev/null 2>&1
+  if [ "$action" = scan ]; then
+    log "Suche Bluetooth-Geräte …"
+    timeout 20 bluetoothctl --timeout 12 scan on > /dev/null 2>&1
+    list_devices | report_task "$id" true ""
+  elif [ "$action" = pair ]; then
+    log "Kopple $mac …"
+    if ! timeout 5 bluetoothctl info "$mac" 2>/dev/null | grep -q "Paired: yes"; then
+      # Gerät muss frisch gefunden worden sein, sonst schlägt das Koppeln fehl
+      timeout 20 bluetoothctl --timeout 15 scan on > /dev/null 2>&1 &
+      scan_pid=$!
+      for i in $(seq 1 15); do timeout 5 bluetoothctl info "$mac" > /dev/null 2>&1 && break; sleep 1; done
+      kill "$scan_pid" 2>/dev/null; wait "$scan_pid" 2>/dev/null
+      timeout 5 bluetoothctl scan off > /dev/null 2>&1
+      if ! timeout 30 bluetoothctl pair "$mac" 2>&1 | grep -qE "Pairing successful|AlreadyExists"; then
+        log "Koppeln mit $mac fehlgeschlagen"
+        echo | report_task "$id" false "Koppeln fehlgeschlagen – ist das Gerät im Kopplungsmodus?"
+        return
+      fi
+    fi
+    timeout 5 bluetoothctl trust "$mac" > /dev/null 2>&1
+    MAC="$mac"; connect
+    if timeout 5 bluetoothctl info "$mac" 2>/dev/null | grep -q "Connected: yes"; then
+      echo | report_task "$id" true "Gekoppelt und verbunden"
+    else
+      echo | report_task "$id" true "Gekoppelt – Verbindung folgt, sobald das Gerät eingeschaltet ist"
+    fi
+  fi
+}
+
+log "Bluetooth-Wächter gestartet"
+while true; do
+  MAC="$(sed -n 's/^SPEAKER_MAC=//p' "$CONFIG" 2>/dev/null | tr -d '"'"'"' ' | tail -1)"
+  connected=false
+  sink_ok=false
+  name=""
+
+  if [ -n "$MAC" ]; then
+    info="$(timeout 5 bluetoothctl info "$MAC" 2>/dev/null)"
+    name="$(echo "$info" | sed -n 's/^[[:space:]]*Name: //p' | head -1 | tr -d '"\\')"
+    echo "$info" | grep -q "Connected: yes" && connected=true
+
+    if $connected; then
+      # Audioausgang der Soundbar suchen und als Standard setzen
+      sink="$(timeout 5 pactl list short sinks 2>/dev/null | awk '{print $2}' | grep -m1 "^bluez_output\.${MAC//:/_}")"
+      if [ -n "$sink" ]; then
+        [ "$(timeout 5 pactl get-default-sink 2>/dev/null)" = "$sink" ] || timeout 5 pactl set-default-sink "$sink"
+        sink_ok=true
+      fi
+    fi
+  fi
+
+  reply="$(curl -fs -m 3 -X POST "$API" -H 'Content-Type: application/json' \
+    -d "{\"mac\":\"$MAC\",\"name\":\"$name\",\"connected\":$connected,\"sink_ok\":$sink_ok}")"
+  wanted=false
+  echo "$reply" | grep -q '"reconnect":true' && wanted=true
+
+  # Auftrag aus der Einrichtung?  {"task":{"id":"…","action":"scan","mac":""}}
+  task_id="$(echo "$reply" | sed -n 's/.*"task":{"id":"\([0-9a-f]*\)".*/\1/p')"
+  if [ -n "$task_id" ]; then
+    task_action="$(echo "$reply" | sed -n 's/.*"action":"\([a-z]*\)".*/\1/p')"
+    task_mac="$(echo "$reply" | sed -n 's/.*"mac":"\([0-9A-Fa-f:]*\)".*/\1/p')"
+    run_task "$task_id" "$task_action" "$task_mac"
+    continue
+  fi
+
+  if [ -n "$MAC" ]; then
+    now=$(date +%s)
+    if ! $connected && { $wanted || [ $((now - last_try)) -ge $RETRY_SECONDS ]; }; then
+      connect
+    elif $connected && $wanted; then
+      log "Neu verbinden angefordert"
+      timeout 10 bluetoothctl disconnect "$MAC" > /dev/null 2>&1
+      sleep 2
+      connect
+    fi
+  fi
+  sleep 5
+done

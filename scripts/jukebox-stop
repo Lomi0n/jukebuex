@@ -1,0 +1,3 @@
+#!/bin/bash
+# JUKEBÜX-Vollbild beenden (Server läuft weiter)
+pkill -f '[j]ukebox-chrome' && echo "Jukebox-Vollbild beendet." || echo "Jukebox-Vollbild lief nicht."

@@ -1,0 +1,170 @@
+#!/bin/bash
+# JUKEBÜX-Wartung: Sicherung, Updates und Neustart
+#
+#   jukebox-update            Sicherung + alle Updates + Neustart
+#   jukebox-update --backup   nur Sicherung erstellen
+#   jukebox-update --yes      ohne Rückfrage (z. B. für Neustart am Schluss)
+#   jukebox-update --auto     automatischer Lauf (wöchentlich per Timer, ohne Passwort)
+#
+# Neue JUKEBÜX-Versionen kommen von GitHub (JUKEBUX_REPO in config.env).
+# Sicherungen liegen in ~/jukebox-backups (die letzten 10 werden behalten).
+
+set -u
+BACKUP_DIR="$HOME/jukebox-backups"
+KEEP=10
+JB="$HOME/jukebox"
+BACKEND="$JB/backend"
+CONFIG="$BACKEND/config.env"
+STAMP="$(date +%Y%m%d-%H%M%S)"
+ONLY_BACKUP=0
+YES=0
+AUTO=0
+for arg in "$@"; do
+  case "$arg" in
+    --backup) ONLY_BACKUP=1 ;;
+    --yes|-y) YES=1 ;;
+    --auto) AUTO=1; YES=1 ;;
+    -h|--help) sed -n '2,10p' "$0"; exit 0 ;;
+  esac
+done
+# Im automatischen Lauf nie nach einem Passwort fragen (nur freigegebene Befehle)
+SUDO="sudo"
+[ "$AUTO" = 1 ] && SUDO="sudo -n"
+WARNINGS=0
+LAST_WARNING=""
+
+say()    { echo; echo "== $*"; }
+ok()     { echo "   ✔ $*"; }
+warn()   { echo "   ⚠ $*"; WARNINGS=$((WARNINGS + 1)); LAST_WARNING="$*"; }
+# Ergebnis für das Wartungsmenü der Jukebox festhalten
+record() {
+  mkdir -p "$JB/system"
+  printf '{"time":"%s","ok":%s,"auto":%s,"warnings":%d,"text":"%s"}\n' \
+    "$(date -Iseconds)" "$1" "$([ "$AUTO" = 1 ] && echo true || echo false)" "$WARNINGS" "$2" \
+    > "$JB/system/letzte-wartung.json"
+}
+health() {
+  for i in $(seq 1 20); do
+    curl -fs http://localhost:8000/api/health > /dev/null && return 0
+    sleep 1
+  done
+  return 1
+}
+# Versionsvergleich: ist $1 neuer als $2?
+newer() { [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -1)" = "$1" ]; }
+
+# ---------- 1. Sicherung ----------
+say "Sicherung erstellen"
+mkdir -p "$BACKUP_DIR" "$JB/system"
+chmod 700 "$BACKUP_DIR"
+cp /etc/systemd/system/jukebox.service "$JB/system/" 2>/dev/null
+"$BACKEND/.venv/bin/pip" freeze > "$JB/system/python-pakete.txt" 2>/dev/null
+ARCHIVE="$BACKUP_DIR/jukebox-$STAMP.tar.gz"
+tar -czf "$ARCHIVE" -C "$HOME" \
+  --exclude='jukebox/backend/.venv' \
+  --exclude='jukebox/backend/__pycache__' \
+  --exclude='jukebox/backend/main.py.bak-*' \
+  --exclude='jukebox/frontend/node_modules' \
+  --exclude='jukebox/frontend/src/backup' \
+  jukebox .local/bin/jukebox-kiosk .local/bin/jukebox-update .local/bin/jukebox-bluetooth \
+  .config/autostart/jukebox-kiosk.desktop 2>/dev/null
+chmod 600 "$ARCHIVE"   # enthält Schlüssel (config.env, Spotify-Anmeldung)
+ls -1t "$BACKUP_DIR"/jukebox-*.tar.gz 2>/dev/null | tail -n +$((KEEP + 1)) | xargs -r rm --
+ok "$ARCHIVE ($(du -h "$ARCHIVE" | cut -f1))"
+[ "$ONLY_BACKUP" = 1 ] && exit 0
+
+# ---------- 2. Systempakete (inkl. Google Chrome) ----------
+say "Systempakete aktualisieren"
+export DEBIAN_FRONTEND=noninteractive
+if $SUDO /usr/bin/apt-get update -q && \
+   $SUDO /usr/bin/apt-get -y -q -o Dpkg::Options::=--force-confold upgrade; then
+  ok "Systempakete aktuell"
+else
+  warn "Systemupdate fehlgeschlagen – weiter mit den übrigen Schritten"
+fi
+
+# ---------- 3. Neue JUKEBÜX-Version von GitHub ----------
+say "Neue JUKEBÜX-Version suchen"
+REPO="$(sed -n 's/^JUKEBUX_REPO=//p' "$CONFIG" 2>/dev/null | tr -d '"' | tail -1)"
+CURRENT="$(cat "$JB/VERSION" 2>/dev/null || echo 0)"
+if [ -z "$REPO" ]; then
+  ok "Kein GitHub-Repository eingetragen (JUKEBUX_REPO) – übersprungen"
+else
+  LATEST="$(curl -fsSL -m 20 "https://github.com/$REPO/releases/latest/download/VERSION" 2>/dev/null | head -1 | tr -d '[:space:]')"
+  if [ -z "$LATEST" ]; then
+    warn "GitHub nicht erreichbar oder keine Version veröffentlicht ($REPO)"
+  elif newer "$LATEST" "$CURRENT"; then
+    echo "   Neue Version $LATEST (installiert: $CURRENT) – wird eingespielt …"
+    TMP="$(mktemp -d)"
+    if curl -fsSL -m 300 -o "$TMP/jukebux.tar.gz" "https://github.com/$REPO/releases/latest/download/jukebux.tar.gz" \
+       && tar -xzf "$TMP/jukebux.tar.gz" -C "$TMP" \
+       && JUKEBUX_REPO="$REPO" bash "$TMP/jukebux/install.sh" --update --from "$TMP/jukebux.tar.gz"; then
+      ok "JUKEBÜX $LATEST eingespielt"
+    else
+      warn "Update auf $LATEST fehlgeschlagen – bisherige Version bleibt (Sicherung: $ARCHIVE)"
+    fi
+    rm -rf "$TMP"
+  else
+    ok "JUKEBÜX ist aktuell ($CURRENT)"
+  fi
+fi
+
+# ---------- 4. Python-Pakete ----------
+say "Python-Pakete aktualisieren"
+PIP_BEFORE="$JB/system/python-pakete.txt"
+if "$BACKEND/.venv/bin/pip" install -q --upgrade pip && \
+   "$BACKEND/.venv/bin/pip" install -q --upgrade -r "$BACKEND/requirements.txt"; then
+  ok "Python-Pakete aktuell"
+else
+  warn "Python-Update fehlgeschlagen"
+fi
+
+# ---------- 5. Server neu starten und prüfen ----------
+say "Server neu starten"
+$SUDO /usr/bin/systemctl restart jukebox
+if health; then
+  ok "Server läuft"
+else
+  warn "Server startet nicht – setze Python-Pakete auf den vorherigen Stand zurück"
+  "$BACKEND/.venv/bin/pip" install -q -r "$PIP_BEFORE"
+  $SUDO /usr/bin/systemctl restart jukebox
+  if health; then
+    ok "Server läuft wieder (alter Paketstand)"
+  else
+    warn "Server läuft weiterhin nicht. Protokoll: journalctl -u jukebox -n 50"
+  fi
+fi
+
+# ---------- 6. Abschluss ----------
+VERSION_NOW="$(cat "$JB/VERSION" 2>/dev/null || echo '?')"
+if health; then
+  if [ "$WARNINGS" = 0 ]; then record true "Alles aktuell (Version $VERSION_NOW)"; else record true "Mit Warnung: $LAST_WARNING"; fi
+else
+  record false "Server läuft nach dem Update nicht"
+fi
+
+if [ "$AUTO" = 1 ]; then
+  # Automatischer Lauf: nur neu starten, wenn das System es verlangt, sonst Vollbild neu laden
+  if [ -f /var/run/reboot-required ]; then
+    echo "Neustart wegen Systemupdate."
+    sudo -n /usr/bin/systemctl reboot
+  else
+    "$HOME/.local/bin/jukebox-restart"
+  fi
+  exit 0
+fi
+
+echo
+if [ -f /var/run/reboot-required ]; then
+  echo "Das System empfiehlt einen Neustart (z. B. wegen eines neuen Kernels)."
+fi
+echo "Damit die Jukebox auf dem Bildschirm die neue Version lädt, ist ein Neustart am einfachsten."
+if [ "$YES" = 1 ]; then
+  sudo /usr/bin/systemctl reboot
+else
+  read -r -p "Jetzt neu starten? [j/N] " answer
+  case "$answer" in
+    j|J|ja|Ja) sudo reboot ;;
+    *) echo "Kein Neustart. Später mit: sudo reboot  (oder nur das Vollbild: jukebox-restart)" ;;
+  esac
+fi

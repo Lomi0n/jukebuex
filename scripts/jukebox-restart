@@ -1,0 +1,6 @@
+#!/bin/bash
+# JUKEBÜX-Vollbild (neu) starten – funktioniert auch per SSH
+pkill -f '[j]ukebox-chrome' && sleep 2
+systemd-run --user --collect --quiet "$HOME/.local/bin/jukebox-kiosk" \
+  && echo "Jukebox-Vollbild wird gestartet." \
+  || echo "Start fehlgeschlagen – notfalls: sudo reboot"

@@ -1,0 +1,43 @@
+#!/bin/bash
+# JUKEBÜX im Vollbild starten (Chrome-Kiosk)
+BASE="http://localhost:8000"
+PROFILE="$HOME/.config/jukebox-chrome"
+
+# Server starten, falls er beendet wurde (z. B. über das Wartungsmenü)
+curl -fs "$BASE/api/health" > /dev/null || sudo -n /usr/bin/systemctl start jukebox
+
+# Warten, bis der Server bereit ist
+for i in $(seq 1 60); do
+  curl -fs "$BASE/api/health" > /dev/null && break
+  sleep 1
+done
+
+# Hinweis "Chrome wurde nicht korrekt beendet" nach Stromausfall vermeiden
+PREFS="$PROFILE/Default/Preferences"
+if [ -f "$PREFS" ]; then
+  sed -i 's/"exited_cleanly":false/"exited_cleanly":true/; s/"exit_type":"[^"]*"/"exit_type":"Normal"/' "$PREFS"
+fi
+
+# Google Chrome bevorzugt (nur damit spielt Spotify), sonst Chromium
+BROWSER="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+if [ -z "$BROWSER" ]; then
+  echo "Kein Chrome/Chromium gefunden." >&2
+  exit 1
+fi
+
+# Das Profil "jukebox-chrome" dient auch zum Wiedererkennen (jukebox-stop)
+exec "$BROWSER" \
+  --user-data-dir="$PROFILE" \
+  --kiosk \
+  --no-first-run \
+  --noerrdialogs \
+  --disable-infobars \
+  --disable-session-crashed-bubble \
+  --disable-features=Translate \
+  --autoplay-policy=no-user-gesture-required \
+  --password-store=basic \
+  --ozone-platform-hint=auto \
+  --enable-wayland-ime \
+  --wayland-text-input-version=3 \
+  --check-for-update-interval=31536000 \
+  "$BASE/"
