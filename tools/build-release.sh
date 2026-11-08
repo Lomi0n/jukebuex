@@ -4,8 +4,13 @@
 #   bash tools/build-release.sh [VERSION]
 set -euo pipefail
 cd "$(dirname "$0")/.."
-[ $# -ge 1 ] && echo "${1#v}" > VERSION
+# Tag in Versionsnummer umwandeln: v1.0.4, V1.0.4, v.1.0.4 -> 1.0.4
+[ $# -ge 1 ] && echo "$1" | sed -E 's/^[vV]\.?//' > VERSION
 VERSION="$(cat VERSION)"
+if ! echo "$VERSION" | grep -qE '^[0-9]+(\.[0-9]+){1,3}$'; then
+  echo "Ungültige Version «$VERSION» – Tags bitte wie v1.0.5 benennen." >&2
+  exit 1
+fi
 
 echo "== Oberfläche bauen"
 ( cd frontend && { [ -d node_modules ] || npm ci; } && npm run build )
