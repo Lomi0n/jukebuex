@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Plus, Pencil, Trash2, Square, Volume2, Search, X, Upload, Play, ImageOff } from 'lucide-react'
+import { Plus, Pencil, Trash2, Square, Volume2, Search, X, Upload, Play, ImageOff, Download, FileUp, LoaderCircle } from 'lucide-react'
 import { API, soundActions } from './jukebox'
 import Keyboard from './Keyboard'
 
@@ -34,6 +34,23 @@ export function SoundsView({ jb, notify }) {
   const [editing, setEditing] = useState(false)
   const [dialog, setDialog] = useState(null)        // null | 'new' | sound
   const [confirmDelete, setConfirmDelete] = useState(null)
+  const [importing, setImporting] = useState(false)
+  const importInput = useRef(null)
+
+  // ZIP aus einem Export (oder ein ZIP voller Audiodateien) hinzufügen
+  async function importFile(event) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    setImporting(true)
+    const result = await soundActions.importZip(file)
+    setImporting(false)
+    if (result?.error) { notify(result.error, 'warn'); return }
+    const parts = [`${result.added} ${result.added === 1 ? 'Sound' : 'Sounds'} importiert`]
+    if (result.skipped.length) parts.push(`${result.skipped.length} schon vorhanden`)
+    if (result.failed.length) parts.push(`${result.failed.length} ungültig`)
+    notify(parts.join(' · '), result.added ? 'ok' : 'warn')
+  }
 
   const words = filter.toLowerCase().split(/\s+/).filter(Boolean)
   const shown = [...jb.sounds]
@@ -82,6 +99,20 @@ export function SoundsView({ jb, notify }) {
             onChange={e => jb.changeSoundVolume(Number(e.target.value))} aria-label="Lautstärke der Sounds" />
           <span>{jb.soundVolume}%</span>
         </div>
+        {/* Alle Sounds als ZIP sichern bzw. aus einem ZIP hinzufügen (nur am PC) */}
+        {IS_REMOTE && (
+          <div className="sb-transfer">
+            <a className="sb-transfer-btn" href={soundActions.exportUrl()} download title="Alle Sounds als ZIP herunterladen"
+              onClick={e => { if (!jb.sounds.length) { e.preventDefault(); notify('Noch keine Sounds zum Exportieren', 'warn') } }}>
+              <Download size={16} /> Exportieren
+            </a>
+            <button className="sb-transfer-btn" onClick={() => importInput.current?.click()} disabled={importing}
+              title="Sounds aus einem ZIP hinzufügen (Export oder ZIP mit Audiodateien)">
+              {importing ? <LoaderCircle size={16} className="spin" /> : <FileUp size={16} />} {importing ? 'Importiere …' : 'Importieren'}
+            </button>
+            <input ref={importInput} type="file" accept=".zip,application/zip" hidden onChange={importFile} />
+          </div>
+        )}
       </div>
 
       {jb.sounds.length === 0 ? (

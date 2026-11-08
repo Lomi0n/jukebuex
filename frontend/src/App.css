@@ -40,6 +40,11 @@ h1, h2, h3 { font-family: var(--head); margin: 0; }
 .logo-icon { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: var(--accent); color: var(--accent-ink); }
 .logo strong { display: block; font: 700 18px var(--head); letter-spacing: 3px; }
 .logo span { font-size: 12px; color: var(--muted); }
+.logo .logo-version { margin-left: 8px; font: 600 11px 'DM Sans', system-ui, sans-serif; letter-spacing: 0.3px; color: var(--muted); vertical-align: 2px; }
+.sb-transfer { display: flex; gap: 6px; flex: 0 0 auto; }
+.sb-transfer-btn { display: inline-flex; align-items: center; gap: 7px; height: 40px; padding: 0 14px; border-radius: 20px; border: 1px solid var(--line); background: var(--panel-2); color: var(--muted); font-size: 13.5px; font-weight: 700; text-decoration: none; white-space: nowrap; }
+.sb-transfer-btn:hover:not(:disabled) { color: var(--text); background: var(--hover); }
+.sb-transfer-btn:disabled { opacity: 0.6; }
 .sidebar nav { display: flex; flex-direction: column; gap: 4px; }
 .sidebar nav button { display: flex; align-items: center; gap: 14px; padding: 14px 14px; border-radius: 10px; color: var(--muted); font-weight: 700; font-size: 15px; text-align: left; }
 .sidebar nav button:hover { color: var(--text); background: var(--hover); }
@@ -304,8 +309,8 @@ kbd { padding: 2px 7px; border-radius: 5px; background: #000; border: 1px solid 
 .sb-actions .btn-secondary { margin: 0; }
 .sb-actions .btn-secondary.active { border-color: var(--accent); color: var(--accent); }
 .sb-stop { color: #ff8f7a; }
-.sb-toolbar { display: flex; align-items: center; gap: 20px; margin-bottom: 26px; }
-.sb-filter { flex: 1; display: flex; align-items: center; gap: 10px; height: 46px; padding: 0 8px 0 16px; border-radius: 30px; background: var(--panel-2); border: 1px solid var(--line); color: var(--muted); }
+.sb-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; margin-bottom: 26px; }
+.sb-filter { flex: 1 1 240px; min-width: 0; display: flex; align-items: center; gap: 10px; height: 46px; padding: 0 8px 0 16px; border-radius: 30px; background: var(--panel-2); border: 1px solid var(--line); color: var(--muted); }
 .sb-filter input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: transparent; font-size: 15px; }
 .sb-volume { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; }
 .sb-volume input { width: 140px; accent-color: var(--accent); }

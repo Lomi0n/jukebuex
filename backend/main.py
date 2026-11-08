@@ -1,5 +1,6 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request
 from fastapi.responses import RedirectResponse, FileResponse
+from starlette.background import BackgroundTask
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -19,8 +20,10 @@ import re
 import secrets
 import socket
 import subprocess
+import tempfile
 import time
 import urllib.error
+import zipfile
 import urllib.parse
 import urllib.request
 
@@ -1206,6 +1209,111 @@ async def set_sound_volume(body: Volume):
     sound_settings["volume"] = body.volume
     await broadcast_sounds()
     return sounds_message()
+
+
+# ---------- Soundboard exportieren / importieren ----------
+# Format: ZIP mit soundboard.json (Name, Farbe, Dateien) und den Ton- und Bilddateien.
+# Ein ZIP ohne soundboard.json geht auch: dann wird jede Audiodatei ein Sound (Name = Dateiname).
+
+SOUNDBOARD_FORMAT = "jukebuex-soundboard"
+MAX_IMPORT_BYTES = 300 * 1024 * 1024        # hochgeladenes ZIP
+MAX_IMPORT_UNPACKED = 600 * 1024 * 1024     # Summe aller entpackten Dateien (Schutz vor ZIP-Bomben)
+MAX_IMPORT_SOUNDS = 500
+
+
+def safe_file_part(name):
+    return re.sub(r"[^A-Za-z0-9äöüÄÖÜéèàß_-]+", "-", name).strip("-")[:40] or "sound"
+
+
+@app.get("/api/sounds/export")
+def export_sounds():
+    """Alle Sounds als ZIP herunterladen."""
+    tmp = tempfile.NamedTemporaryFile(prefix="soundboard-", suffix=".zip", delete=False)
+    tmp.close()
+    entries = []
+    with zipfile.ZipFile(tmp.name, "w", zipfile.ZIP_DEFLATED) as archive:
+        ordered = sorted(sounds, key=lambda x: x["name"].lower())
+        for index, sound in enumerate(ordered, 1):
+            source = SOUND_DIR / sound["file"]
+            if not source.is_file():
+                continue
+            base = f"{index:03d}-{safe_file_part(sound['name'])}"
+            entry = {"name": sound["name"], "color": sound["color"],
+                     "file": f"sounds/{base}{source.suffix.lower()}", "image": None}
+            # Audio ist meist schon komprimiert -> nur speichern, nicht nochmals packen
+            archive.write(source, entry["file"], compress_type=zipfile.ZIP_STORED)
+            image = SOUND_DIR / sound["image"] if sound.get("image") else None
+            if image and image.is_file():
+                entry["image"] = f"images/{base}{image.suffix.lower()}"
+                archive.write(image, entry["image"], compress_type=zipfile.ZIP_STORED)
+            entries.append(entry)
+        archive.writestr("soundboard.json", json.dumps(
+            {"format": SOUNDBOARD_FORMAT, "version": 1, "app_version": app_version(),
+             "exported": time.strftime("%Y-%m-%dT%H:%M:%S"), "volume": sound_settings["volume"],
+             "sounds": entries}, ensure_ascii=False, indent=2))
+    filename = f"soundboard-{time.strftime('%Y-%m-%d')}.zip"
+    return FileResponse(tmp.name, media_type="application/zip", filename=filename,
+                        background=BackgroundTask(os.unlink, tmp.name))
+
+
+@app.post("/api/sounds/import")
+async def import_sounds(request: Request):
+    """ZIP aus dem Export (oder einfach ein ZIP voller Audiodateien) hinzufügen.
+    Sounds mit einem Namen, den es schon gibt, werden übersprungen."""
+    require_remote(request)
+    body = await read_upload(request, MAX_IMPORT_BYTES, "Import")
+    try:
+        archive = zipfile.ZipFile(io.BytesIO(body))
+    except zipfile.BadZipFile:
+        raise HTTPException(400, "Das ist keine gültige ZIP-Datei.")
+    with archive:
+        infos = {i.filename: i for i in archive.infolist() if not i.is_dir()}
+        if sum(i.file_size for i in infos.values()) > MAX_IMPORT_UNPACKED:
+            raise HTTPException(413, "Der Inhalt des ZIP ist zu gross.")
+
+        # Liste der Sounds bestimmen
+        if "soundboard.json" in infos:
+            try:
+                meta = json.loads(archive.read("soundboard.json"))
+                wanted = [e for e in meta.get("sounds", []) if isinstance(e, dict)]
+            except ValueError:
+                raise HTTPException(400, "soundboard.json ist beschädigt.")
+        else:
+            wanted = [{"name": Path(n).stem.replace("_", " ")[:40], "file": n, "image": None}
+                      for n in sorted(infos) if Path(n).suffix.lower() in SOUND_TYPES
+                      and not Path(n).name.startswith(".") and "__MACOSX" not in n]
+        if not wanted:
+            raise HTTPException(400, "Im ZIP wurden keine Sounds gefunden.")
+
+        existing = {s["name"].strip().lower() for s in sounds}
+        added, skipped, failed = 0, [], []
+        for entry in wanted[:MAX_IMPORT_SOUNDS]:
+            name = str(entry.get("name") or "").strip()[:40]
+            color = entry.get("color") if re.match(COLOR, str(entry.get("color") or "")) else "#e0242a"
+            file_info = infos.get(str(entry.get("file") or ""))
+            if not name or not file_info or Path(file_info.filename).suffix.lower() not in SOUND_TYPES \
+                    or file_info.file_size > MAX_SOUND_BYTES or file_info.file_size == 0:
+                failed.append(name or str(entry.get("file")))
+                continue
+            if name.lower() in existing:
+                skipped.append(name)
+                continue
+            sound_id = str(uuid4())
+            suffix = Path(file_info.filename).suffix.lower()
+            (SOUND_DIR / f"{sound_id}{suffix}").write_bytes(archive.read(file_info))
+            image_name = None
+            image_info = infos.get(str(entry.get("image") or ""))
+            if image_info and Path(image_info.filename).suffix.lower() in IMAGE_TYPES \
+                    and 0 < image_info.file_size <= MAX_IMAGE_BYTES:
+                image_name = f"{sound_id}-img{Path(image_info.filename).suffix.lower()}"
+                (SOUND_DIR / image_name).write_bytes(archive.read(image_info))
+            sounds.append({"id": sound_id, "name": name, "color": color, "file": f"{sound_id}{suffix}",
+                           "image": image_name, "created": time.time()})
+            existing.add(name.lower())
+            added += 1
+    if added:
+        await broadcast_sounds()
+    return {"added": added, "skipped": skipped, "failed": failed}
 
 
 # ---------- Farbe aus dem Cover (für die Hintergrundfarbe der Oberfläche) ----------

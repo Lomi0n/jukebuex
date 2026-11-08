@@ -90,6 +90,8 @@ export const soundActions = {
   setImage: (sound, file) => upload('PUT', `/api/sounds/${sound.id}/image`, file),
   removeImage: sound => request('DELETE', `/api/sounds/${sound.id}/image`),
   remove: sound => request('DELETE', `/api/sounds/${sound.id}`),
+  importZip: file => upload('POST', '/api/sounds/import', file),
+  exportUrl: () => `${API}/api/sounds/export`,
 }
 
 export const favoriteActions = {

@@ -198,7 +198,7 @@ function Sidebar({ view, navigate, connected, spotify, spotifyError, onAdmin, bl
           <Logo size={46} />
         </div>
         <div>
-          <strong>{branding.name}</strong>
+          <strong>{branding.name}{info?.version && <small className="logo-version">v{info.version}</small>}</strong>
           {(IS_REMOTE || branding.subtitle) && <span>{IS_REMOTE ? 'Fernbedienung' : branding.subtitle}</span>}
         </div>
       </div>
