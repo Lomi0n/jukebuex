@@ -31,13 +31,15 @@ connect() {
 # PipeWire nennt ihn bluez_output.AA_BB_…, PulseAudio bluez_sink.AA_BB_… (Gross-/Kleinschreibung egal).
 set_default_sink() {
   local mac_us="${MAC//:/_}" sink id
+  # 1. Über die PulseAudio-Schnittstelle (pactl) – falls vorhanden und ein Audioserver antwortet
   if command -v pactl > /dev/null; then
     sink="$(timeout 5 pactl list short sinks 2>/dev/null | awk '{print $2}' | grep -i -m1 -E "^bluez_(output|sink)\.${mac_us}")"
-    [ -n "$sink" ] || return 1
-    [ "$(timeout 5 pactl get-default-sink 2>/dev/null)" = "$sink" ] || timeout 5 pactl set-default-sink "$sink"
-    return 0
+    if [ -n "$sink" ]; then
+      [ "$(timeout 5 pactl get-default-sink 2>/dev/null)" = "$sink" ] || timeout 5 pactl set-default-sink "$sink"
+      return 0
+    fi
   fi
-  # Ohne pactl: direkt über PipeWire (wpctl)
+  # 2. Direkt über PipeWire (wpctl)
   command -v wpctl > /dev/null || return 1
   id="$(timeout 5 pw-cli ls Node 2>/dev/null | awk -v want="$mac_us" '
     /^[[:space:]]*id [0-9]+,/ { gsub(",", "", $2); id = $2 }
@@ -46,6 +48,19 @@ set_default_sink() {
   timeout 5 wpctl inspect @DEFAULT_AUDIO_SINK@ 2>/dev/null | grep -q "^id $id," || timeout 5 wpctl set-default "$id"
   return 0
 }
+
+# Fehlersuche: jukebox-bluetooth --check
+if [ "${1:-}" = "--check" ]; then
+  MAC="$(sed -n 's/^SPEAKER_MAC=//p' "$CONFIG" 2>/dev/null | tr -d '"'"'"' ' | tail -1)"
+  echo "Lautsprecher (config.env): ${MAC:-– nicht eingetragen –}"
+  [ -n "$MAC" ] && timeout 5 bluetoothctl info "$MAC" 2>/dev/null | grep -E "Name:|Paired:|Connected:|Icon:" | sed 's/^[[:space:]]*/  /'
+  echo "pactl: $(command -v pactl || echo fehlt)   wpctl: $(command -v wpctl || echo fehlt)"
+  echo "Audioausgänge (pactl):"; timeout 5 pactl list short sinks 2>&1 | sed 's/^/  /'
+  echo "Audioausgänge (PipeWire):"; timeout 5 pw-cli ls Node 2>/dev/null | grep 'node.name = ' | sed 's/^[[:space:]]*/  /'
+  echo "Standardausgang: $(timeout 5 pactl get-default-sink 2>/dev/null || echo ?)"
+  if [ -n "$MAC" ] && set_default_sink; then echo "Ergebnis: Ausgang gefunden ✔"; else echo "Ergebnis: Ausgang NICHT gefunden ✖"; fi
+  exit 0
+fi
 
 # Geräteliste für die Einrichtung: eine Zeile pro Gerät "MAC|gekoppelt|audio|Name"
 list_devices() {
@@ -109,7 +124,12 @@ while true; do
 
     if $connected; then
       # Audioausgang der Soundbar suchen und als Standard setzen
-      set_default_sink && sink_ok=true
+      if set_default_sink; then
+        sink_ok=true
+      elif [ "${sink_warned:-}" != "$MAC" ]; then
+        log "Verbunden, aber kein Audioausgang für $MAC gefunden (Details: jukebox-bluetooth --check)"
+        sink_warned="$MAC"
+      fi
     fi
   fi
 
