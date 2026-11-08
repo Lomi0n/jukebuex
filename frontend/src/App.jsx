@@ -235,10 +235,15 @@ function StatusPanel({ connected, spotify, spotifyError, bt }) {
     else if (!bt.mac) { state = 'unknown'; text = 'Nicht eingerichtet'; title = 'SPEAKER_MAC in config.env fehlt' }
     else if (bt.connecting) { state = 'busy'; text = 'Verbinde …' }
     else if (bt.connected && bt.sink_ok) { state = 'on'; text = 'Verbunden' }
-    else if (bt.connected) { state = 'busy'; text = 'Ton umleiten …' }
+    else if (bt.connected) {
+      // Verbunden, aber der Audioausgang der Box wurde (noch) nicht gefunden
+      state = 'busy'; text = 'Verbunden'
+      title = `${title} – verbunden, aber der Ton läuft evtl. noch nicht über die Box`
+    }
     else { state = 'off'; text = 'Getrennt' }
-    const Icon = state === 'on' ? BluetoothConnected : state === 'off' ? BluetoothOff : Bluetooth
-    const canConnect = bt.watcher && bt.mac && !bt.connecting && (state === 'off' || state === 'busy')
+    const Icon = bt.connected ? BluetoothConnected : state === 'off' ? BluetoothOff : Bluetooth
+    // "Verbinden" nur anbieten, wenn die Box wirklich getrennt ist
+    const canConnect = bt.watcher && bt.mac && !bt.connecting && state === 'off'
     rows.push({ key: 'bt', Icon, label: 'Lautsprecher', state, text, title,
       action: canConnect ? { label: 'Verbinden', run: () => actions.bluetoothReconnect() } : null })
   }

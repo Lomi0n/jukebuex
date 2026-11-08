@@ -27,6 +27,26 @@ connect() {
   last_try=$(date +%s)
 }
 
+# Audioausgang des Lautsprechers suchen und als Standard setzen.
+# PipeWire nennt ihn bluez_output.AA_BB_…, PulseAudio bluez_sink.AA_BB_… (Gross-/Kleinschreibung egal).
+set_default_sink() {
+  local mac_us="${MAC//:/_}" sink id
+  if command -v pactl > /dev/null; then
+    sink="$(timeout 5 pactl list short sinks 2>/dev/null | awk '{print $2}' | grep -i -m1 -E "^bluez_(output|sink)\.${mac_us}")"
+    [ -n "$sink" ] || return 1
+    [ "$(timeout 5 pactl get-default-sink 2>/dev/null)" = "$sink" ] || timeout 5 pactl set-default-sink "$sink"
+    return 0
+  fi
+  # Ohne pactl: direkt über PipeWire (wpctl)
+  command -v wpctl > /dev/null || return 1
+  id="$(timeout 5 pw-cli ls Node 2>/dev/null | awk -v want="$mac_us" '
+    /^[[:space:]]*id [0-9]+,/ { gsub(",", "", $2); id = $2 }
+    /node.name = / && tolower($0) ~ ("bluez_output\\." tolower(want)) { print id; exit }')"
+  [ -n "$id" ] || return 1
+  timeout 5 wpctl inspect @DEFAULT_AUDIO_SINK@ 2>/dev/null | grep -q "^id $id," || timeout 5 wpctl set-default "$id"
+  return 0
+}
+
 # Geräteliste für die Einrichtung: eine Zeile pro Gerät "MAC|gekoppelt|audio|Name"
 list_devices() {
   timeout 5 bluetoothctl devices 2>/dev/null | while read -r _ dev _; do
@@ -89,11 +109,7 @@ while true; do
 
     if $connected; then
       # Audioausgang der Soundbar suchen und als Standard setzen
-      sink="$(timeout 5 pactl list short sinks 2>/dev/null | awk '{print $2}' | grep -m1 "^bluez_output\.${MAC//:/_}")"
-      if [ -n "$sink" ]; then
-        [ "$(timeout 5 pactl get-default-sink 2>/dev/null)" = "$sink" ] || timeout 5 pactl set-default-sink "$sink"
-        sink_ok=true
-      fi
+      set_default_sink && sink_ok=true
     fi
   fi
 
