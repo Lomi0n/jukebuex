@@ -341,7 +341,7 @@ function StepSpotifyLogin({ status, onDevice, go, spotifyResult }) {
         <p className="setup-lead">Spotify wurde übersprungen. Du kannst es später über das Wartungsmenü nachholen.</p>
       ) : connected ? (
         <>
-          <p className="setup-lead">Die JUKEBÜX ist mit Spotify verbunden und erscheint dort als Gerät «Jukebox».</p>
+          <p className="setup-lead">Die JUKEBÜX ist mit Spotify verbunden und erscheint dort als Gerät «{status.name}{status.subtitle ? ` – ${status.subtitle}` : ''}».</p>
           <Message ok={`Angemeldet als ${user || 'Spotify-Konto'}`} />
           {onDevice && (
             <button className="setup-btn" onClick={() => { window.location.href = `${API}/api/spotify/login` }}>
