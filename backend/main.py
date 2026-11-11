@@ -127,6 +127,8 @@ current = _saved.get("current")          # aktuell laufender Titel
 favorites = _saved.get("favorites", [])  # Favoritenlisten
 sounds = _saved.get("sounds", [])        # Nippelsounds
 sound_settings = {"volume": _saved.get("sound_volume", 80)}
+# Webradio: gespeicherte Sender, gewählter Sender, Lückenfüller an/aus
+radio = {"stations": [], "station_id": None, "on": False, **_saved.get("radio", {})}
 # Nach einem Neustart pausiert starten, damit nicht plötzlich Musik losgeht
 playback = {"paused": bool(current), "volume": _saved.get("volume", 80), "position": 0.0, "duration": 0.0}
 connections: List[WebSocket] = []
@@ -135,7 +137,7 @@ connections: List[WebSocket] = []
 def save_data():
     data = {"version": 1, "queue": queue, "history": history, "current": current,
             "volume": playback["volume"], "favorites": favorites,
-            "sounds": sounds, "sound_volume": sound_settings["volume"]}
+            "sounds": sounds, "sound_volume": sound_settings["volume"], "radio": radio}
     tmp = DATA_FILE.with_suffix(".tmp")
     tmp.write_text(json.dumps(data, ensure_ascii=False))
     tmp.replace(DATA_FILE)  # atomar: nie eine halb geschriebene Datei
@@ -144,9 +146,9 @@ def save_data():
 class Track(BaseModel):
     title: str
     artist: str = "Unbekannter Interpret"
-    source: str = "local"          # local | spotify | youtube
-    url: Optional[str] = None      # Audiodatei (lokal)
-    ref: Optional[str] = None      # Spotify-URI oder YouTube-Video-ID
+    source: str = "local"          # local | spotify | youtube | radio
+    url: Optional[str] = None      # Audiodatei (lokal) oder Radiostream
+    ref: Optional[str] = None      # Spotify-URI, YouTube-Video-ID oder Sender-ID
     image: Optional[str] = None    # Cover-Bild
     album: Optional[str] = None
     duration: Optional[float] = None
@@ -218,10 +220,14 @@ async def broadcast(message=None, exclude=None):
             drop_connection(connection)
 
 
+def is_radio(track):
+    return bool(track) and track.get("source") == "radio"
+
+
 def finish_current():
-    """Aktuellen Titel in den Verlauf verschieben."""
+    """Aktuellen Titel in den Verlauf verschieben (Radiosender nicht)."""
     global current
-    if current:
+    if current and not is_radio(current):
         history.insert(0, current)
         del history[HISTORY_LIMIT:]
     current = None
@@ -492,6 +498,7 @@ async def add_track(track: Track, next: bool = False):
         queue.insert(0, item)
     else:
         queue.append(item)
+    interrupt_radio()
     await broadcast()
     return {"status": "added", **item}
 
@@ -509,6 +516,7 @@ async def add_tracks(body: BulkTracks):
         queue[0:0] = items
     else:
         queue.extend(items)
+    interrupt_radio()
     await broadcast()
     return {"added": len(items), "skipped": skipped}
 
@@ -554,17 +562,23 @@ async def play_direct(track: Track):
 
 @app.post("/api/next")
 async def next_track():
-    finish_current()
-    if queue:
-        start(queue.pop(0))
+    if is_radio(current) and not queue:
+        switch_station(+1)   # im Radio: «Weiter» = nächster Sender
+    else:
+        finish_current()
+        if queue:
+            start(queue.pop(0))
+        else:
+            radio_fill()     # Warteschlange leer: Radio übernimmt (falls eingeschaltet)
     await broadcast()
     return state()
 
 
 @app.post("/api/ended/{play_id}")
 async def track_ended(play_id: str):
-    # Nur weiterschalten, wenn wirklich der aktuelle Titel zu Ende ist
-    if current and current.get("play_id") == play_id:
+    # Nur weiterschalten, wenn wirklich der aktuelle Titel zu Ende ist.
+    # Ein Radiostream «endet» nicht – der Player verbindet sich selbst neu.
+    if current and current.get("play_id") == play_id and not is_radio(current):
         return await next_track()
     return state()
 
@@ -572,6 +586,10 @@ async def track_ended(play_id: str):
 @app.post("/api/previous")
 async def previous_track():
     global current
+    if is_radio(current):
+        switch_station(-1)   # im Radio: «Zurück» = vorheriger Sender
+        await broadcast()
+        return state()
     if playback["position"] > 3 or not history:
         return await seek(Seek(position=0))
     if current:
@@ -588,7 +606,7 @@ async def toggle():
         playback["paused"] = not playback["paused"]
         await broadcast()
         return state()
-    if queue:
+    if queue or radio["on"]:
         return await next_track()
     return state()
 
@@ -1761,12 +1779,316 @@ def search(q: str = "", sources: str = "local"):
     return result
 
 
+# ---------- Webradio ----------
+# Senderverzeichnis: radio-browser.info (frei, ohne Schlüssel). Gespeicherte Sender laufen
+# als Lückenfüller: sobald die Warteschlange leer ist. Ein Wunsch unterbricht das Radio.
+
+RADIO_SERVERS = ["de1", "de2", "fi1", "at1", "nl1"]
+RADIO_HEADERS = {"User-Agent": "JUKEBUX/1.0 (+https://github.com/Lomi0n/jukebuex)"}
+RADIO_CODECS = {"MP3", "AAC", "AAC+", "OGG", "OPUS", "FLAC"}   # spielt Chrome direkt ab
+_radio_cache = {}
+
+
+class Station(BaseModel):
+    name: str = Field(min_length=1, max_length=80, pattern=r"\S")
+    url: str = Field(max_length=600, pattern=r"^https?://")
+    image: Optional[str] = Field(default=None, max_length=600)
+    country: Optional[str] = Field(default=None, max_length=60)
+    tags: Optional[str] = Field(default=None, max_length=120)
+    codec: Optional[str] = Field(default=None, max_length=20)
+    bitrate: Optional[int] = None
+    homepage: Optional[str] = Field(default=None, max_length=600)
+    uuid: Optional[str] = Field(default=None, max_length=60)   # stationuuid bei radio-browser
+
+
+def radio_message():
+    return {"type": "radio", **radio}
+
+
+async def broadcast_radio():
+    save_data()
+    await broadcast(radio_message())
+
+
+def find_station(station_id):
+    return next((s for s in radio["stations"] if s["id"] == station_id), None)
+
+
+def station_subtitle(station):
+    parts = [station.get("country"), station.get("tags")]
+    return " · ".join(p for p in parts if p) or "Webradio"
+
+
+def radio_track(station):
+    return {"id": str(uuid4()), "source": "radio", "title": station["name"],
+            "artist": station_subtitle(station), "subtitle": station_subtitle(station),
+            "url": station["url"], "image": station.get("image"), "ref": station["id"],
+            "album": None, "duration": None}
+
+
+def radio_fill():
+    """Läuft nichts mehr und ist das Radio eingeschaltet: gewählten Sender starten."""
+    if radio["on"] and not current and not queue:
+        station = find_station(radio["station_id"])
+        if station:
+            start(radio_track(station))
+
+
+def interrupt_radio():
+    """Neuer Wunsch, während das Radio läuft: sofort zum Wunsch wechseln."""
+    if is_radio(current) and queue:
+        paused = playback["paused"]
+        start(queue.pop(0))
+        playback["paused"] = paused
+
+
+def switch_station(step):
+    stations = radio["stations"]
+    if not stations:
+        return
+    ids = [s["id"] for s in stations]
+    index = ids.index(radio["station_id"]) if radio["station_id"] in ids else -step
+    station = stations[(index + step) % len(stations)]
+    radio["station_id"] = station["id"]
+    start(radio_track(station))
+
+
+def radio_browser(path, params=None):
+    """Fragt das Senderverzeichnis ab, mit Ausweichservern."""
+    query = urllib.parse.urlencode(params or {})
+    for server in RADIO_SERVERS:
+        url = f"https://{server}.api.radio-browser.info{path}" + (f"?{query}" if query else "")
+        try:
+            request = urllib.request.Request(url, headers=RADIO_HEADERS)
+            with urllib.request.urlopen(request, timeout=6) as response:
+                return json.loads(response.read())
+        except (OSError, ValueError):
+            continue
+    raise HTTPException(502, "Das Radioverzeichnis ist gerade nicht erreichbar. Bitte später nochmals versuchen.")
+
+
+def station_from_directory(item):
+    tags = [t.strip() for t in (item.get("tags") or "").split(",") if t.strip()][:3]
+    return {
+        "uuid": item.get("stationuuid"),
+        "name": (item.get("name") or "").strip()[:80] or "Unbenannter Sender",
+        "url": item.get("url_resolved") or item.get("url"),
+        "image": item.get("favicon") or None,
+        "country": item.get("country") or None,
+        "countrycode": item.get("countrycode") or None,
+        "tags": ", ".join(tags) or None,
+        "codec": item.get("codec") or None,
+        "bitrate": item.get("bitrate") or None,
+        "homepage": item.get("homepage") or None,
+        "votes": item.get("votes") or 0,
+    }
+
+
+@app.get("/api/radio")
+def get_radio():
+    return radio
+
+
+@app.get("/api/radio/search")
+def radio_search(q: str = "", country: str = "", tag: str = ""):
+    """Sender suchen. Ohne Angaben: beliebte Sender aus der Schweiz."""
+    q, country, tag = q.strip()[:80], country.strip().upper()[:2], tag.strip().lower()[:40]
+    if not (q or country or tag):
+        country = "CH"
+    key = (q.lower(), country, tag)
+    cached = _radio_cache.get(key)
+    if cached and time.time() - cached[0] < 600:
+        return cached[1]
+    params = {"limit": 80, "hidebroken": "true", "order": "clickcount", "reverse": "true"}
+    if q:
+        params["name"] = q
+    if country:
+        params["countrycode"] = country
+    if tag:
+        params["tag"] = tag
+    results, seen = [], set()
+    for item in radio_browser("/json/stations/search", params):
+        url = item.get("url_resolved") or item.get("url") or ""
+        codec = (item.get("codec") or "").upper()
+        # HLS-Streams und unbekannte Formate spielt der Browser nicht zuverlässig ab
+        if item.get("hls") or not url.startswith(("http://", "https://")) or url in seen:
+            continue
+        if codec and codec not in RADIO_CODECS:
+            continue
+        seen.add(url)
+        results.append(station_from_directory(item))
+    results = results[:40]
+    _radio_cache[key] = (time.time(), results)
+    return results
+
+
+def resolve_playlist(url):
+    """.pls/.m3u-Links (Senderwebseiten) in die eigentliche Stream-Adresse auflösen."""
+    path = urllib.parse.urlparse(url).path.lower()
+    if path.endswith(".m3u8"):
+        raise HTTPException(400, "HLS-Streams (.m3u8) werden nicht unterstützt. Bitte eine MP3- oder AAC-Adresse verwenden.")
+    if not path.endswith((".pls", ".m3u")):
+        return url
+    try:
+        request = urllib.request.Request(url, headers=RADIO_HEADERS)
+        with urllib.request.urlopen(request, timeout=6) as response:
+            text = response.read(65536).decode("utf-8", "replace")
+    except OSError:
+        raise HTTPException(400, "Die Playlist-Datei des Senders konnte nicht geladen werden.")
+    for line in text.splitlines():
+        line = line.strip()
+        if "=" in line and line.lower().startswith("file"):
+            line = line.split("=", 1)[1].strip()
+        if line.startswith(("http://", "https://")):
+            return line
+    raise HTTPException(400, "In der Playlist-Datei wurde keine Stream-Adresse gefunden.")
+
+
+def require_remote_radio(request: Request):
+    if is_local(request):
+        raise HTTPException(403, "Sender bitte über die Fernbedienung an einem PC verwalten.")
+
+
+@app.post("/api/radio/stations")
+async def add_station(station: Station, request: Request):
+    require_remote_radio(request)
+    data = station.model_dump()
+    data["url"] = resolve_playlist(data["url"])
+    existing = next((s for s in radio["stations"]
+                     if s["url"] == data["url"] or (data["uuid"] and s.get("uuid") == data["uuid"])), None)
+    if existing:
+        return {"status": "exists", **existing}
+    new = {"id": str(uuid4()), **data}
+    radio["stations"].append(new)
+    await broadcast_radio()
+    return {"status": "added", **new}
+
+
+@app.delete("/api/radio/stations/{station_id}")
+async def delete_station(station_id: str, request: Request):
+    require_remote_radio(request)
+    station = find_station(station_id)
+    if not station:
+        raise HTTPException(404, "Sender nicht gefunden")
+    radio["stations"].remove(station)
+    if radio["station_id"] == station_id:
+        radio.update(station_id=None, on=False)
+        if is_radio(current):
+            finish_current()
+            await broadcast()
+    await broadcast_radio()
+    return {"status": "deleted"}
+
+
+@app.post("/api/radio/stations/{station_id}/move")
+async def move_station(station_id: str, body: Move, request: Request):
+    require_remote_radio(request)
+    station = find_station(station_id)
+    if not station:
+        raise HTTPException(404, "Sender nicht gefunden")
+    radio["stations"].remove(station)
+    radio["stations"].insert(min(body.index, len(radio["stations"])), station)
+    await broadcast_radio()
+    return {"status": "moved"}
+
+
+def count_click(uuid):
+    """Dem Verzeichnis melden, dass der Sender gehört wird (hilft der Rangliste)."""
+    try:
+        radio_browser(f"/json/url/{urllib.parse.quote(uuid)}")
+    except HTTPException:
+        pass
+
+
+@app.post("/api/radio/play/{station_id}")
+async def play_station(station_id: str):
+    station = find_station(station_id)
+    if not station:
+        raise HTTPException(404, "Sender nicht gefunden")
+    radio.update(station_id=station_id, on=True)
+    if station.get("uuid"):
+        asyncio.get_running_loop().run_in_executor(None, count_click, station["uuid"])
+    # Läuft gerade ein Wunsch, kommt das Radio erst danach
+    waiting = bool(current and not is_radio(current))
+    if not waiting:
+        start(radio_track(station))
+        await broadcast()
+    await broadcast_radio()
+    return {"status": "waiting" if waiting else "playing"}
+
+
+@app.post("/api/radio/off")
+async def radio_off():
+    radio["on"] = False
+    if is_radio(current):
+        finish_current()
+        await broadcast()
+    await broadcast_radio()
+    return {"status": "off"}
+
+
+# Was läuft gerade? Viele Sender schicken den Titel als ICY-Metadaten im Stream mit.
+_radio_meta_task = None
+
+
+def read_icy_title(url):
+    request = urllib.request.Request(url, headers={**RADIO_HEADERS, "Icy-MetaData": "1"})
+    try:
+        with urllib.request.urlopen(request, timeout=8) as response:
+            metaint = int(response.headers.get("icy-metaint") or 0)
+            if not 0 < metaint <= 256 * 1024:
+                return None
+            remaining = metaint
+            while remaining > 0:
+                chunk = response.read(min(remaining, 16384))
+                if not chunk:
+                    return None
+                remaining -= len(chunk)
+            length = response.read(1)
+            if not length:
+                return None
+            meta = response.read(length[0] * 16).rstrip(b"\0")
+    except (OSError, ValueError):
+        return None
+    try:
+        text = meta.decode("utf-8")
+    except UnicodeDecodeError:
+        text = meta.decode("latin-1")
+    match = re.search(r"StreamTitle='(.*?)';", text, re.S)
+    title = match.group(1).strip() if match else ""
+    return title[:150] or None
+
+
+async def radio_meta_loop():
+    while True:
+        await asyncio.sleep(15)
+        track = current
+        if not is_radio(track) or playback["paused"]:
+            continue
+        title = await asyncio.to_thread(read_icy_title, track["url"])
+        # Inzwischen umgeschaltet? Dann verwerfen
+        if current is not track:
+            continue
+        artist = title or track.get("subtitle") or "Webradio"
+        if track.get("now_playing") != title or track.get("artist") != artist:
+            track.update(now_playing=title, artist=artist)
+            await broadcast()
+
+
+def ensure_radio_meta_task():
+    global _radio_meta_task
+    if _radio_meta_task is None or _radio_meta_task.done():
+        _radio_meta_task = asyncio.create_task(radio_meta_loop())
+
+
 # ---------- Live-Verbindung ----------
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
-    for message in (state(), {"type": "favorites", "lists": favorites}, sounds_message(), bluetooth_message()):
+    ensure_radio_meta_task()
+    for message in (state(), {"type": "favorites", "lists": favorites}, sounds_message(),
+                    bluetooth_message(), radio_message()):
         if not await send_safe(websocket, message):
             await close_quietly(websocket)
             return

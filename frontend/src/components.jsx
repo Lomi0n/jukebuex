@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
-import { Music2, Play, Plus, Trash2, ListStart, Star, GripVertical } from 'lucide-react'
+import { Music2, Play, Plus, Trash2, ListStart, Star, GripVertical, Radio as RadioIcon } from 'lucide-react'
 
 // Favoriten: TrackRow zeigt den Stern automatisch, sobald dieser Kontext vorhanden ist
 export const FavoritesContext = createContext(null)
@@ -20,8 +20,19 @@ function hue(text = '') {
 
 export function Cover({ track, size = 48, className = '' }) {
   const style = { width: size, height: size }
-  if (track?.image) {
-    return <img className={`cover ${className}`} style={style} src={track.image} alt="" />
+  const [broken, setBroken] = useState(null)   // Bild lässt sich nicht laden (z. B. Senderlogo)
+  if (track?.image && broken !== track.image) {
+    return <img className={`cover ${track.source === 'radio' ? 'cover-logo' : ''} ${className}`} style={style}
+      src={track.image} alt="" onError={() => setBroken(track.image)} />
+  }
+  if (track?.source === 'radio') {
+    const h = hue(track?.title)
+    return (
+      <div className={`cover cover-empty ${className}`}
+        style={{ ...style, background: `linear-gradient(135deg, hsl(${h} 45% 32%), hsl(${(h + 50) % 360} 40% 14%))` }}>
+        <RadioIcon size={Math.round(size * 0.4)} />
+      </div>
+    )
   }
   const h = hue(`${track?.artist}${track?.title}`)
   return (
@@ -32,7 +43,7 @@ export function Cover({ track, size = 48, className = '' }) {
   )
 }
 
-const SOURCES = { local: 'Lokal', spotify: 'Spotify', youtube: 'YouTube' }
+const SOURCES = { local: 'Lokal', spotify: 'Spotify', youtube: 'YouTube', radio: 'Radio' }
 
 export function SourceBadge({ source }) {
   return <span className={`badge badge-${source}`}>{SOURCES[source] || source}</span>

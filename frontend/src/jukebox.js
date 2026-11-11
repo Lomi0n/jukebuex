@@ -94,6 +94,34 @@ export const soundActions = {
   exportUrl: () => `${API}/api/sounds/export`,
 }
 
+// Webradio: Sender verwalten (nur Fernbedienung) und abspielen
+async function send(method, path, body) {
+  try {
+    const options = { method }
+    if (body !== undefined) {
+      options.headers = { 'Content-Type': 'application/json' }
+      options.body = JSON.stringify(body)
+    }
+    const response = await fetch(`${API}${path}`, options)
+    const data = await response.json().catch(() => null)
+    if (!response.ok) {
+      const detail = Array.isArray(data?.detail) ? 'Ungültige Angaben.' : data?.detail
+      return { error: detail || `Fehler ${response.status}` }
+    }
+    return data
+  } catch {
+    return { error: 'Server nicht erreichbar.' }
+  }
+}
+
+export const radioActions = {
+  play: station => send('POST', `/api/radio/play/${station.id}`),
+  off: () => send('POST', '/api/radio/off'),
+  add: station => send('POST', '/api/radio/stations', station),
+  remove: station => send('DELETE', `/api/radio/stations/${station.id}`),
+  move: (station, index) => send('POST', `/api/radio/stations/${station.id}/move`, { index }),
+}
+
 export const favoriteActions = {
   create: name => request('POST', '/api/favorites', { name }),
   rename: (list, name) => request('PATCH', `/api/favorites/${list.id}`, { name }),
@@ -119,6 +147,7 @@ export function useJukebox(isPlayer) {
   const [soundVolume, setSoundVolume] = useState(80)
   const soundHandlers = useRef(new Set())
   const [bluetooth, setBluetooth] = useState(null)
+  const [radio, setRadio] = useState({ stations: [], station_id: null, on: false })
   const wsRef = useRef(null)
   const seekHandlers = useRef(new Set())
 
@@ -138,6 +167,8 @@ export function useJukebox(isPlayer) {
     } else if (msg.type === 'sounds') {
       setSounds(msg.sounds || [])
       setSoundVolume(msg.volume ?? 80)
+    } else if (msg.type === 'radio') {
+      setRadio({ stations: msg.stations || [], station_id: msg.station_id, on: Boolean(msg.on) })
     } else if (msg.type === 'bluetooth') {
       setBluetooth(msg)
     } else if (msg.type === 'sound-play' || msg.type === 'sound-stop') {
@@ -233,7 +264,7 @@ export function useJukebox(isPlayer) {
 
   return {
     queue, current, history, paused, volume, position, duration, connected, favorites,
-    sounds, soundVolume, onSoundEvent, changeSoundVolume, bluetooth,
+    sounds, soundVolume, onSoundEvent, changeSoundVolume, bluetooth, radio,
     playing: Boolean(current) && !paused,
     setPosition, setDuration, sendPosition, onSeek, changeVolume, seekTo,
   }

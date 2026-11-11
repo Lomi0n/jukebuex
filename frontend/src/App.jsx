@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Disc3, Search, HardDrive, ListMusic, Play, Pause, SkipBack, SkipForward,
-  Volume2, VolumeX, Laptop, MonitorSpeaker, History as HistoryIcon, Music2, X,
+  Volume2, VolumeX, Laptop, MonitorSpeaker, History as HistoryIcon, X,
   LibraryBig, ListStart, Shuffle, ArrowLeft, Heart, Star, Link2, ListVideo, CircleDot,
-  Bluetooth, BluetoothConnected, BluetoothOff, Server
+  Bluetooth, BluetoothConnected, BluetoothOff, Server, Radio as RadioIcon, Power
 } from 'lucide-react'
-import { useJukebox, actions, getJson, getResult, API, branding } from './jukebox'
+import { useJukebox, actions, radioActions, getJson, getResult, API, branding } from './jukebox'
 import AudioEngine from './AudioEngine'
 import YouTubeEngine from './YouTubeEngine'
 import SpotifyEngine from './SpotifyEngine'
@@ -14,6 +14,7 @@ import { Cover, SourceBadge, TrackRow, SortableList, FavoritesContext, formatTim
 import { FavoritesView, FavoritePicker } from './Favorites'
 import { AdminMenu, useLongPress } from './Admin'
 import { SoundsView } from './Sounds'
+import { RadioView } from './Radio'
 import SoundEngine from './SoundEngine'
 import Screensaver from './Screensaver'
 import { Logo, Equalizer, Splash, useCoverColor } from './Brand'
@@ -152,6 +153,7 @@ function JukeboxApp({ info }) {
           <FavoritesView lists={jb.favorites} openId={favOpenId} setOpenId={setFavOpenId}
             enqueue={enqueue} enqueueMany={enqueueMany} notify={notify} />
         )}
+        {view === 'radio' && <RadioView jb={jb} notify={notify} />}
         {view === 'sounds' && <SoundsView jb={jb} notify={notify} />}
         {view === 'spotify' && (
           <SpotifyView collection={collection} onBack={() => setCollection(null)}
@@ -186,6 +188,7 @@ function Sidebar({ view, navigate, connected, spotify, spotifyError, onAdmin, bl
     ['now', Disc3, 'Jetzt läuft'],
     ['search', Search, 'Suchen'],
     ['favorites', Star, 'Favoriten'],
+    ['radio', RadioIcon, 'Radio'],
     ['sounds', CircleDot, 'Soundboard'],
     ...(spotify?.configured ? [['spotify', LibraryBig, 'Spotify']] : []),
     ['library', HardDrive, 'Lokale Musik'],
@@ -298,6 +301,7 @@ function NowPlaying({ jb, enqueue, goSearch }) {
 
   // Auf dem Surface wird bei YouTube das Video statt des Covers gezeigt
   const showVideo = !IS_REMOTE && current.source === 'youtube'
+  if (current.source === 'radio') return <NowPlayingRadio jb={jb} enqueue={enqueue} />
 
   return (
     <div className="now">
@@ -313,6 +317,32 @@ function NowPlaying({ jb, enqueue, goSearch }) {
             <SourceBadge source={current.source} />
             <FavoriteButton track={current} />
           </div>
+        </div>
+      </div>
+      {history.length > 0 && <HistoryStrip history={history} enqueue={enqueue} />}
+    </div>
+  )
+}
+
+// Radio: Sendername gross, darunter der laufende Song (falls der Sender ihn mitschickt)
+function NowPlayingRadio({ jb, enqueue }) {
+  const { current, history, playing } = jb
+  const song = current.now_playing
+  const [artist, title] = song && song.includes(' - ') ? song.split(/ - (.+)/) : [null, song]
+  return (
+    <div className="now">
+      <div key={current.play_id} className="now-hero">
+        <Cover track={current} size={300} className={`now-cover ${playing ? 'is-playing' : ''}`} />
+        <div className="now-text">
+          <span className="eyebrow"><Equalizer playing={playing} /> {playing ? 'Live im Radio' : 'Radio pausiert'}</span>
+          <h1>{title || current.title}</h1>
+          <p>{title ? `${artist ? `${artist} · ` : ''}${current.title}` : current.subtitle}</p>
+          <div className="now-meta">
+            <SourceBadge source="radio" />
+            <span className="live-pill"><i /> Live</span>
+            <button className="btn-secondary" onClick={() => radioActions.off()}><Power size={17} /> Radio aus</button>
+          </div>
+          <p className="radio-hint">Läuft, bis jemand einen Song wünscht. «Weiter» wechselt zum nächsten Sender.</p>
         </div>
       </div>
       {history.length > 0 && <HistoryStrip history={history} enqueue={enqueue} />}
@@ -661,7 +691,8 @@ function LibraryView({ enqueue, musicDir }) {
 // ---------- Warteschlange (rechts) ----------
 
 function QueuePanel({ jb }) {
-  const { queue, current, playing } = jb
+  const { queue, current, playing, radio } = jb
+  const station = radio.on && radio.stations.find(s => s.id === radio.station_id)
   return (
     <aside className="queue-panel panel">
       <h2><ListMusic size={22} /> Warteschlange <span className="count">{queue.length}</span></h2>
@@ -682,8 +713,15 @@ function QueuePanel({ jb }) {
 
       <h3>Als Nächstes</h3>
       {queue.length === 0
-        ? <p className="muted">Die Warteschlange ist leer. Füge über die Suche Songs hinzu.</p>
+        ? <p className="muted">{station
+          ? current?.source === 'radio'
+            ? 'Die Warteschlange ist leer – das Radio läuft, bis jemand einen Song wünscht.'
+            : `Die Warteschlange ist leer. Danach läuft ${station.name}.`
+          : 'Die Warteschlange ist leer. Füge über die Suche Songs hinzu.'}</p>
         : <QueueList queue={queue} />}
+      {station && queue.length > 0 && (
+        <p className="queue-radio"><RadioIcon size={15} /> Danach: {station.name}</p>
+      )}
     </aside>
   )
 }
@@ -729,13 +767,19 @@ function PlayerBar({ jb }) {
           </button>
           <button className="icon-btn" onClick={actions.next} aria-label="Weiter"><SkipForward size={24} fill="currentColor" /></button>
         </div>
-        <div className="pb-timeline">
-          <span>{formatTime(position)}</span>
-          <input type="range" min="0" max={duration || 0} step="1"
-            value={Math.min(position, duration || 0)}
-            onChange={e => jb.seekTo(Number(e.target.value))} />
-          <span>{formatTime(duration)}</span>
-        </div>
+        {current?.source === 'radio' ? (
+          <div className="pb-timeline pb-live">
+            <span className="live-pill"><i /> Live</span>
+          </div>
+        ) : (
+          <div className="pb-timeline">
+            <span>{formatTime(position)}</span>
+            <input type="range" min="0" max={duration || 0} step="1"
+              value={Math.min(position, duration || 0)}
+              onChange={e => jb.seekTo(Number(e.target.value))} />
+            <span>{formatTime(duration)}</span>
+          </div>
+        )}
       </div>
 
       <div className="pb-volume">

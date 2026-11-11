@@ -1,11 +1,12 @@
 # JUKEBÜX
 
 Eine Jukebox für zu Hause: ein Linux-Gerät mit Touchscreen (z. B. ein Surface oder ein alter
-Laptop) spielt Musik von **Spotify**, **YouTube** und aus **lokalen Dateien** über eine
+Laptop) spielt Musik von **Spotify**, **YouTube**, **Webradio** und aus **lokalen Dateien** über eine
 Bluetooth-Stereoanlage. Gäste wünschen sich Songs bequem vom PC oder Laptop aus über die
 Fernbedienung im Browser.
 
 - Vollbild-Oberfläche für den Touchscreen mit Warteschlange, Verlauf, Favoritenlisten und Soundboard
+- Webradio als Lückenfüller: läuft, sobald die Warteschlange leer ist (Sender aus [radio-browser.info](https://www.radio-browser.info))
 - Fernbedienung im Browser: `http://<IP-der-Jukebox>:8000/remote`
 - Bluetooth-Wächter, der die Stereoanlage verbunden hält
 - Bildschirmschoner, verstecktes Wartungsmenü, wöchentliche automatische Wartung mit Updates
@@ -63,6 +64,7 @@ Wartungsmenü **Einrichtung erneut starten** wählen.
 | Jukebox | Vollbild auf dem Gerät |
 | Fernbedienung | `http://<IP>:8000/remote` von jedem PC im selben Netz |
 | Sounds hochladen | nur über die Fernbedienung (nicht am Gerät selbst) |
+| Radiosender suchen/hinzufügen | nur über die Fernbedienung, abspielen auch am Gerät |
 | Wartungsmenü | Logo oben links 2 Sekunden gedrückt halten |
 | Lokale Musik | MP3/FLAC in `~/Musik/Jukebox` (bzw. `~/Music/Jukebox`) |
 

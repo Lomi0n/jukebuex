@@ -2,11 +2,34 @@ import { useEffect, useRef, useState } from 'react'
 import { Volume2 } from 'lucide-react'
 import { API, actions } from './jukebox'
 
-// Spielt lokale Musikdateien auf dem Surface ab.
+// Spielt lokale Musikdateien und Webradio-Streams auf dem Surface ab.
 export default function AudioEngine({ jb, audioRef }) {
   const { current, paused, volume } = jb
   const [needsUnlock, setNeedsUnlock] = useState(false)
   const lastReport = useRef(0)
+  const retryTimer = useRef(null)
+  const retries = useRef(0)
+  const isLive = current?.source === 'radio'
+
+  function sourceUrl() {
+    return current.url.startsWith('http') ? current.url : API + current.url
+  }
+
+  // Radio: Stream neu aufbauen (nach Pause wieder «live» statt verzögert, nach Abbruch neu verbinden)
+  function reconnect() {
+    const audio = audioRef.current
+    if (!current?.url) return
+    audio.src = sourceUrl()
+    if (!paused) tryPlay()
+  }
+
+  // Abbruch oder Fehler beim Radiostream: mit wachsender Wartezeit neu verbinden (max. 30 s)
+  function retryLive() {
+    clearTimeout(retryTimer.current)
+    const delay = Math.min(30, 3 * 2 ** retries.current) * 1000
+    retries.current += 1
+    retryTimer.current = setTimeout(reconnect, delay)
+  }
 
   function tryPlay() {
     const audio = audioRef.current
@@ -27,6 +50,8 @@ export default function AudioEngine({ jb, audioRef }) {
 
   useEffect(() => {
     const audio = audioRef.current
+    clearTimeout(retryTimer.current)
+    retries.current = 0
     if (!current || !current.url) {
       audio.pause()
       audio.removeAttribute('src')
@@ -35,12 +60,16 @@ export default function AudioEngine({ jb, audioRef }) {
       jb.setDuration(0)
       return
     }
-    audio.src = current.url.startsWith('http') ? current.url : API + current.url
+    audio.src = sourceUrl()
     if (!paused) tryPlay()
   }, [playId])
 
   useEffect(() => {
-    if (paused) audioRef.current.pause()
+    if (paused) {
+      audioRef.current.pause()
+      if (isLive) clearTimeout(retryTimer.current)
+    }
+    else if (isLive && audioRef.current.getAttribute('src')) reconnect()
     else tryPlay()
   }, [paused])
 
@@ -62,8 +91,10 @@ export default function AudioEngine({ jb, audioRef }) {
       <audio
         ref={audioRef}
         onTimeUpdate={onTimeUpdate}
-        onLoadedMetadata={e => jb.setDuration(e.target.duration)}
-        onEnded={() => current && actions.ended(current.play_id)}
+        onLoadedMetadata={e => jb.setDuration(Number.isFinite(e.target.duration) ? e.target.duration : 0)}
+        onPlaying={() => { retries.current = 0 }}
+        onError={() => isLive && !paused && retryLive()}
+        onEnded={() => isLive ? retryLive() : current && actions.ended(current.play_id)}
       />
       {needsUnlock && (
         <button className="unlock" onClick={tryPlay}>
