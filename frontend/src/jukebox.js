@@ -1,3 +1,4 @@
+/* JUKEBÜX – © 2026 Lomi0n. PolyForm Strict License 1.0.0 (siehe LICENSE). */
 import { useEffect, useRef, useState } from 'react'
 
 export const API = `${window.location.protocol}//${window.location.hostname}:8000`

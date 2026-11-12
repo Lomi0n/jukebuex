@@ -1,3 +1,4 @@
+/* JUKEBÜX – © 2026 Lomi0n. PolyForm Strict License 1.0.0 (siehe LICENSE). */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, Pencil, Trash2, Square, Volume2, Search, X, Upload, Play, ImageOff, Download, FileUp, LoaderCircle } from 'lucide-react'
 import { API, soundActions } from './jukebox'

@@ -1,3 +1,4 @@
+# JUKEBÜX – © 2026 Lomi0n. PolyForm Strict License 1.0.0 (siehe LICENSE).
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request
 from fastapi.responses import RedirectResponse, FileResponse
 from starlette.background import BackgroundTask
@@ -35,6 +36,7 @@ HISTORY_LIMIT = 10
 PORT = 8000
 FRONTEND_DIST = BACKEND_DIR.parent / "frontend" / "dist"
 DEFAULT_NAME = "JUKEBÜX"
+COPYRIGHT = "JUKEBÜX © 2026 Lomi0n – PolyForm Strict License 1.0.0"
 
 
 def load_config():
@@ -485,7 +487,7 @@ def youtube_search(q):
 
 @app.get("/api/health")
 def health():
-    return {"message": "JUKEBÜX läuft!", "status": "online", "version": app_version()}
+    return {"message": "JUKEBÜX läuft!", "status": "online", "version": app_version(), "copyright": COPYRIGHT}
 
 
 @app.get("/api/info")

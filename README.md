@@ -88,50 +88,6 @@ Jeden Sonntag um 4 Uhr erstellt die Jukebox eine Sicherung, spielt System-Update
 eine neue JUKEBÜX-Version von GitHub (falls vorhanden) und startet neu. Das Ergebnis steht im
 Wartungsmenü.
 
-## Neue Version veröffentlichen (für Entwickler)
-
-Auf GitHub unter **Releases → Draft a new release** einen neuen Tag wie `v1.0.1` anlegen und
-**Publish release** wählen – oder im Terminal:
-
-```bash
-git tag v1.0.1
-git push origin v1.0.1
-```
-
-GitHub Actions baut dann die Oberfläche und veröffentlicht ein Release mit `jukebux.tar.gz`.
-Alle Jukeboxen holen es sich bei der nächsten Wartung automatisch. Lokal bauen und testen:
-
-```bash
-bash tools/build-release.sh          # -> release/jukebux.tar.gz
-bash install.sh --from release/jukebux.tar.gz
-```
-
-Entwickeln mit Live-Vorschau: Server mit `uvicorn main:app --reload --port 8000` in `backend/`
-starten, dann in `frontend/` `npm install` und `npm run dev`.
-
-## Aufbau
-
-```
-backend/        FastAPI-Server (main.py), automatische Mixe (mixer.py), Einstellungen in config.env
-frontend/       React-Oberfläche (Vite)
-scripts/        Kiosk-Start, Bluetooth-Wächter, Wartung
-install.sh      Installation und Aktualisierung
-tools/          Release-Paket bauen
-```
-
-Auf dem Gerät:
-
-```
-~/jukebox/backend/config.env           Schlüssel und Einstellungen (nur für den Benutzer lesbar)
-~/jukebox/backend/data.json            Warteschlange, Verlauf, Favoriten, Sounds
-~/jukebox/backend/spotify_token.json   Spotify-Anmeldung
-~/jukebox/backend/plays.json           Hörprofil für die Mixe (was wie oft lief)
-~/jukebox/backend/mixes.json           automatische Mixe
-~/jukebox/backend/mixcache.json        Zwischenspeicher (Künstlerinfos, gefundene Spotify-/YouTube-Titel)
-~/jukebox/sounds/                      Soundboard-Dateien
-~/jukebox-backups/                     Sicherungen (die letzten 10)
-```
-
 ## Sicherheit
 
 - Schlüssel und persönliche Daten liegen nur auf dem Gerät und sind per `.gitignore` vom
@@ -157,7 +113,7 @@ Die automatische Anmeldung wird unter Einstellungen → Benutzer wieder ausgesch
 
 ## Lizenz
 
-Copyright (c) 2026 Dominick. Ab Version 1.2.1 gilt die
+Copyright (c) 2026 Lomi0n. Ab Version 1.2.1 gilt die
 [PolyForm Strict License 1.0.0](LICENSE) – kurz zusammengefasst (massgebend ist der Lizenztext):
 
 - **Erlaubt:** die JUKEBÜX für private, nicht-kommerzielle Zwecke installieren und nutzen.

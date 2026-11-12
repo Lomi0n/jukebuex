@@ -1,6 +1,8 @@
+/* JUKEBÜX – © 2026 Lomi0n. PolyForm Strict License 1.0.0 (siehe LICENSE). */
 import { useEffect, useRef, useState } from 'react'
 import { RotateCw, Minimize, Power, PowerOff, RefreshCcw, Settings2, X } from 'lucide-react'
 import { API, getJson } from './jukebox'
+import { COPYRIGHT } from './Brand'
 
 // Verstecktes Wartungsmenü (nur am Jukebox-Gerät): Logo oben links 2 Sekunden gedrückt halten
 
@@ -95,6 +97,7 @@ export function AdminMenu({ onClose }) {
             ? <>Letzte Wartung{maintenance.auto ? ' (automatisch)' : ''}: {new Date(maintenance.time).toLocaleString('de-CH', { weekday: 'short', day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' })} – <span className={maintenance.ok ? '' : 'error'}>{maintenance.text}</span></>
             : 'Noch keine Wartung durchgeführt. Automatisch jeden Sonntag um 4 Uhr.'}
         </p>
+        <p className="muted small admin-copyright">{COPYRIGHT} · PolyForm Strict License 1.0.0</p>
       </div>
     </div>
   )

@@ -1,4 +1,5 @@
 #!/bin/bash
+# JUKEBÜX – © 2026 Lomi0n. PolyForm Strict License 1.0.0 (siehe LICENSE).
 # Baut das Installationspaket release/jukebux.tar.gz (Oberfläche fertig gebaut).
 # Wird von GitHub Actions beim Veröffentlichen genutzt, geht aber auch lokal:
 #   bash tools/build-release.sh [VERSION]

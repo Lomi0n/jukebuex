@@ -1,3 +1,4 @@
+/* JUKEBÜX – © 2026 Lomi0n. PolyForm Strict License 1.0.0 (siehe LICENSE). */
 import { useEffect, useRef, useState } from 'react'
 import {
   Star, Plus, Check, ArrowLeft, ListMusic, Shuffle, ListStart, Pencil, Trash2, X

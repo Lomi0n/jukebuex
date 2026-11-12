@@ -1,3 +1,4 @@
+/* JUKEBÜX – © 2026 Lomi0n. PolyForm Strict License 1.0.0 (siehe LICENSE). */
 import { useEffect, useState } from 'react'
 import { Radio as RadioIcon, Search, X, Plus, Check, Pencil, Trash2, Power, Link2, LoaderCircle } from 'lucide-react'
 import { getResult, radioActions } from './jukebox'

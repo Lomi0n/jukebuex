@@ -1,3 +1,4 @@
+/* JUKEBÜX – © 2026 Lomi0n. PolyForm Strict License 1.0.0 (siehe LICENSE). */
 import { useRef, useState } from 'react'
 import { Delete, CornerDownLeft, ChevronDown, ArrowBigUp, X } from 'lucide-react'
 

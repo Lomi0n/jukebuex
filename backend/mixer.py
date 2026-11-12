@@ -1,3 +1,4 @@
+# JUKEBÜX – © 2026 Lomi0n. PolyForm Strict License 1.0.0 (siehe LICENSE).
 """Automatische Mixe: aus dem Hörprofil ähnliche Musik finden und nach Genre gruppieren.
 
 Spotify gibt eigenen Apps keine Empfehlungen mehr heraus (seit Nov. 2024 / Feb. 2026).

@@ -1,3 +1,4 @@
 #!/bin/bash
+# JUKEBÜX – © 2026 Lomi0n. PolyForm Strict License 1.0.0 (siehe LICENSE).
 # JUKEBÜX-Vollbild beenden (Server läuft weiter)
 pkill -f '[j]ukebox-chrome' && echo "Jukebox-Vollbild beendet." || echo "Jukebox-Vollbild lief nicht."

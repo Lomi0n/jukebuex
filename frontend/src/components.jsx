@@ -1,3 +1,4 @@
+/* JUKEBÜX – © 2026 Lomi0n. PolyForm Strict License 1.0.0 (siehe LICENSE). */
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { Music2, Play, Plus, Trash2, ListStart, Star, GripVertical, Radio as RadioIcon } from 'lucide-react'
 

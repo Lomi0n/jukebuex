@@ -1,3 +1,4 @@
+/* JUKEBÜX – © 2026 Lomi0n. PolyForm Strict License 1.0.0 (siehe LICENSE). */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Disc3, Search, HardDrive, ListMusic, Play, Pause, SkipBack, SkipForward,
@@ -17,7 +18,7 @@ import { SoundsView } from './Sounds'
 import { RadioView } from './Radio'
 import SoundEngine from './SoundEngine'
 import Screensaver from './Screensaver'
-import { Logo, Equalizer, Splash, useCoverColor } from './Brand'
+import { Logo, Equalizer, Splash, useCoverColor, COPYRIGHT } from './Brand'
 import { useFavorites as useContextFavorites } from './components'
 import SetupWizard, { SetupNotice } from './Setup'
 import './App.css'
@@ -227,6 +228,7 @@ function Sidebar({ view, navigate, connected, spotify, spotifyError, onAdmin, bl
             ? <><Laptop size={14} /> Musik spielt auf der Jukebox</>
             : info && <><MonitorSpeaker size={14} /> <span>Wünsche: <b>{info.remote_url.replace(/^https?:\/\//, '')}</b></span></>}
         </div>
+        <div className="copyright">{COPYRIGHT}</div>
       </div>
     </aside>
   )

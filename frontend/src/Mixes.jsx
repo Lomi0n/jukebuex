@@ -1,3 +1,4 @@
+/* JUKEBÜX – © 2026 Lomi0n. PolyForm Strict License 1.0.0 (siehe LICENSE). */
 import { ArrowLeft, ListMusic, Shuffle, ListStart, RefreshCw, Sparkles, LoaderCircle, ThumbsDown, Repeat, Power } from 'lucide-react'
 import { actions, mixActions } from './jukebox'
 import { TrackRow } from './components'

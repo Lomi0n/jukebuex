@@ -1,4 +1,5 @@
 #!/bin/bash
+# JUKEBÜX – © 2026 Lomi0n. PolyForm Strict License 1.0.0 (siehe LICENSE).
 # JUKEBÜX Bluetooth-Wächter
 #  - hält die Stereoanlage/Soundbar verbunden (versucht es alle 20 s erneut)
 #  - stellt sie als Audioausgang ein, sobald sie verbunden ist

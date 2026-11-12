@@ -1,10 +1,11 @@
+/* JUKEBÜX – © 2026 Lomi0n. PolyForm Strict License 1.0.0 (siehe LICENSE). */
 import { useEffect, useRef, useState } from 'react'
 import {
   Check, Copy, Bluetooth, Speaker, LoaderCircle, ChevronLeft, ChevronRight, Music2, KeyRound,
   MonitorPlay, FolderOpen, Sparkles, Laptop, LogIn, Radar, TriangleAlert, PartyPopper, Lock
 } from 'lucide-react'
 import { API } from './jukebox'
-import { Logo } from './Brand'
+import { Logo, COPYRIGHT } from './Brand'
 import Keyboard from './Keyboard'
 import './Setup.css'
 
@@ -139,7 +140,7 @@ export default function SetupWizard({ onDevice }) {
             <div><span>Einrichtung per PC – der Jukebox-Bildschirm zeigt dieselben Schritte.</span></div>
           </div>
         )}
-        <span className="setup-version">Version {status.version}</span>
+        <span className="setup-version">Version {status.version} · {COPYRIGHT}</span>
       </aside>
 
       <main className="setup-main">

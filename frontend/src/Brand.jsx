@@ -1,3 +1,4 @@
+/* JUKEBÜX – © 2026 Lomi0n. PolyForm Strict License 1.0.0 (siehe LICENSE). */
 import { useEffect, useState } from 'react'
 import { getJson, branding } from './jukebox'
 
@@ -39,6 +40,9 @@ export function Equalizer({ playing = true, size = 14 }) {
 
 // ---------- Startbildschirm beim Hochfahren (nur Surface) ----------
 
+// Urheber-Vermerk: fest eingebaut, unabhängig vom einstellbaren Namen der Jukebox
+export const COPYRIGHT = 'JUKEBÜX © 2026 Lomi0n'
+
 export function Splash({ connected }) {
   const [phase, setPhase] = useState('show')   // show -> fade -> gone
   const [minTimeOver, setMinTimeOver] = useState(false)
@@ -60,6 +64,7 @@ export function Splash({ connected }) {
       <h1>{branding.name}</h1>
       {branding.subtitle && <p>{branding.subtitle}</p>}
       <span className="splash-status">{connected ? 'Bereit' : 'Starte …'}</span>
+      <span className="splash-copyright">{COPYRIGHT}</span>
     </div>
   )
 }
