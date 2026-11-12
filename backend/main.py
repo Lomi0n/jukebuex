@@ -37,6 +37,12 @@ PORT = 8000
 FRONTEND_DIST = BACKEND_DIR.parent / "frontend" / "dist"
 DEFAULT_NAME = "JUKEBÜX"
 COPYRIGHT = "JUKEBÜX © 2026 Lomi0n – PolyForm Strict License 1.0.0"
+SKINS = ("standard", "retro", "synthwave", "swiss", "kritzel", "kritzel-dark")   # Aussehen (frontend/src/skins.css)
+
+
+def current_skin():
+    skin = CONFIG.get("JUKEBOX_SKIN")
+    return skin if skin in SKINS else "standard"
 
 
 def load_config():
@@ -131,6 +137,8 @@ current = _saved.get("current")          # aktuell laufender Titel
 favorites = _saved.get("favorites", [])  # Favoritenlisten
 sounds = _saved.get("sounds", [])        # Nippelsounds
 sound_settings = {"volume": _saved.get("sound_volume", 80)}
+# Eigener Hintergrund (versteckt, nur über die Fernbedienung): Bilddatei, Abdunkeln, Weichzeichnen
+background = {"file": None, "version": 0, "dim": 55, "blur": 0, **_saved.get("background", {})}
 # Webradio: gespeicherte Sender, gewählter Sender, Lückenfüller an/aus
 radio = {"stations": [], "station_id": None, "on": False, **_saved.get("radio", {})}
 # Nach einem Neustart pausiert starten, damit nicht plötzlich Musik losgeht
@@ -141,7 +149,8 @@ connections: List[WebSocket] = []
 def save_data():
     data = {"version": 1, "queue": queue, "history": history, "current": current,
             "volume": playback["volume"], "favorites": favorites,
-            "sounds": sounds, "sound_volume": sound_settings["volume"], "radio": radio}
+            "sounds": sounds, "sound_volume": sound_settings["volume"], "radio": radio,
+            "background": background}
     tmp = DATA_FILE.with_suffix(".tmp")
     tmp.write_text(json.dumps(data, ensure_ascii=False))
     tmp.replace(DATA_FILE)  # atomar: nie eine halb geschriebene Datei
@@ -500,6 +509,7 @@ def info():
         "spotify": spotify_configured(),
         "name": CONFIG.get("JUKEBOX_NAME") or DEFAULT_NAME,
         "subtitle": CONFIG.get("JUKEBOX_SUBTITLE") or "",
+        "skin": current_skin(),
         "music_dir": str(MUSIC_DIR),
         "setup_open": setup["open"],
         "version": app_version(),
@@ -1574,6 +1584,7 @@ def setup_status(request: Request):
         "authorized": bool(setup_authorized(request)) and setup["open"],
         "name": CONFIG.get("JUKEBOX_NAME") or DEFAULT_NAME,
         "subtitle": CONFIG.get("JUKEBOX_SUBTITLE") or "",
+        "skin": current_skin(),
         "setup_url": f"http://{ip}:{PORT}/setup",
         "remote_url": f"http://{ip}:{PORT}/remote",
         "spotify": {"configured": spotify_configured(), "client_id": masked(SPOTIFY_CLIENT_ID),
@@ -1644,6 +1655,22 @@ def setup_name(body: SetupName, request: Request):
         raise HTTPException(400, "Bitte einen Namen eingeben.")
     save_config({"JUKEBOX_NAME": name, "JUKEBOX_SUBTITLE": clean_text(body.subtitle) or None})
     return {"status": "ok"}
+
+
+class SkinChoice(BaseModel):
+    skin: str = Field(max_length=20)
+
+
+@app.post("/api/skin")
+async def set_skin(body: SkinChoice, request: Request):
+    """Aussehen wechseln: am Gerät selbst (Wartungsmenü) oder im Einrichtungsassistenten."""
+    if not is_local(request):
+        require_setup(request)
+    if body.skin not in SKINS:
+        raise HTTPException(400, "Diesen Skin gibt es nicht.")
+    save_config({"JUKEBOX_SKIN": None if body.skin == "standard" else body.skin})
+    await broadcast({"type": "skin", "skin": body.skin})
+    return {"status": "ok", "skin": body.skin}
 
 
 class SetupSpotify(BaseModel):
@@ -2573,6 +2600,87 @@ def ensure_background_tasks():
 _mix_schedule_task = None
 
 
+# ---------- Eigener Hintergrund ----------
+# Versteckte Funktion: nur über die Fernbedienung (5× auf den Urheber-Vermerk tippen), nie am Gerät selbst.
+# Das Bild bleibt auf diesem Gerät und wird auf Bildschirmgrösse verkleinert.
+
+BG_DIR = SOUND_DIR.parent / "background"      # ~/jukebox/background
+BG_DIR.mkdir(parents=True, exist_ok=True)
+MAX_BG_BYTES = 15 * 1024 * 1024
+BG_SIZE = (2736, 1824)                        # Surface Pro: mehr braucht es nicht
+
+
+def background_message():
+    return {"type": "background", "dim": background["dim"], "blur": background["blur"],
+            "url": f"/api/background/image?v={background['version']}" if background["file"] else None}
+
+
+async def broadcast_background():
+    save_data()
+    await broadcast(background_message())
+
+
+def require_remote_background(request: Request):
+    if is_local(request):
+        raise HTTPException(403, "Nicht verfügbar.")
+
+
+def convert_background(body):
+    from PIL import Image, ImageOps   # nur hier gebraucht
+    Image.MAX_IMAGE_PIXELS = 60_000_000
+    try:
+        image = ImageOps.exif_transpose(Image.open(io.BytesIO(body))).convert("RGB")
+    except Exception:
+        raise HTTPException(400, "Das Bild konnte nicht gelesen werden (JPG, PNG oder WebP verwenden).")
+    image.thumbnail(BG_SIZE)
+    name = f"bg-{int(time.time())}.jpg"
+    image.save(BG_DIR / name, "JPEG", quality=86, optimize=True)
+    return name
+
+
+@app.put("/api/background")
+async def set_background(request: Request, filename: str = ""):
+    require_remote_background(request)
+    file_suffix(filename, IMAGE_TYPES, "Bild")
+    body = await read_upload(request, MAX_BG_BYTES, "Bild")
+    name = await asyncio.to_thread(convert_background, body)
+    if background["file"]:
+        (BG_DIR / background["file"]).unlink(missing_ok=True)
+    background.update(file=name, version=int(time.time()))
+    await broadcast_background()
+    return background_message()
+
+
+class BackgroundLook(BaseModel):
+    dim: int = Field(ge=0, le=90)
+    blur: int = Field(ge=0, le=30)
+
+
+@app.patch("/api/background")
+async def set_background_look(body: BackgroundLook, request: Request):
+    require_remote_background(request)
+    background.update(dim=body.dim, blur=body.blur)
+    await broadcast_background()
+    return background_message()
+
+
+@app.delete("/api/background")
+async def delete_background(request: Request):
+    require_remote_background(request)
+    if background["file"]:
+        (BG_DIR / background["file"]).unlink(missing_ok=True)
+    background.update(file=None, version=int(time.time()))
+    await broadcast_background()
+    return background_message()
+
+
+@app.get("/api/background/image")
+def background_image():
+    if not background["file"] or not (BG_DIR / background["file"]).exists():
+        raise HTTPException(404, "Kein Hintergrund")
+    return FileResponse(BG_DIR / background["file"], headers={"Cache-Control": "max-age=31536000"})
+
+
 # ---------- Live-Verbindung ----------
 
 @app.websocket("/ws")
@@ -2580,7 +2688,7 @@ async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     ensure_background_tasks()
     for message in (state(), {"type": "favorites", "lists": favorites}, sounds_message(),
-                    bluetooth_message(), radio_message(), mixes_message()):
+                    bluetooth_message(), radio_message(), mixes_message(), background_message()):
         if not await send_safe(websocket, message):
             await close_quietly(websocket)
             return

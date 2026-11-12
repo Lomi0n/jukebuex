@@ -6,7 +6,7 @@ import {
   LibraryBig, ListStart, Shuffle, ArrowLeft, Heart, Star, Link2, ListVideo, CircleDot,
   Bluetooth, BluetoothConnected, BluetoothOff, Server, Radio as RadioIcon, Power, Repeat
 } from 'lucide-react'
-import { useJukebox, actions, radioActions, getJson, getResult, API, branding } from './jukebox'
+import { useJukebox, actions, radioActions, getJson, getResult, API, branding, applySkin } from './jukebox'
 import AudioEngine from './AudioEngine'
 import YouTubeEngine from './YouTubeEngine'
 import SpotifyEngine from './SpotifyEngine'
@@ -14,6 +14,7 @@ import Keyboard from './Keyboard'
 import { Cover, SourceBadge, TrackRow, SortableList, FavoritesContext, formatTime, trackKey } from './components'
 import { FavoritesView, FavoritePicker } from './Favorites'
 import { AdminMenu, useLongPress } from './Admin'
+import { BackgroundDialog, useSecretTaps } from './Background'
 import { SoundsView } from './Sounds'
 import { RadioView } from './Radio'
 import SoundEngine from './SoundEngine'
@@ -39,6 +40,7 @@ export default function App() {
       if (data) {
         branding.name = data.name || 'JUKEBÜX'
         branding.subtitle = data.subtitle || ''
+        applySkin(data.skin)
         document.title = IS_REMOTE ? `${branding.name} – Fernbedienung` : branding.name
         setInfo(data)
       } else {
@@ -69,6 +71,7 @@ function JukeboxApp({ info }) {
   const [favOpenId, setFavOpenId] = useState(null)    // geöffnete Favoritenliste
   const [picker, setPicker] = useState(null)          // { track, anchor } für die Listenauswahl
   const [admin, setAdmin] = useState(false)           // verstecktes Wartungsmenü
+  const [bgDialog, setBgDialog] = useState(false)   // versteckter Dialog «Eigener Hintergrund»
   const coverColor = useCoverColor(jb.current)        // Grundfarbe aus dem aktuellen Cover
 
   // Für die Sterne: welche Titel stecken in irgendeiner Favoritenliste?
@@ -135,6 +138,7 @@ function JukeboxApp({ info }) {
     <FavoritesContext.Provider value={favorites}>
     <div className={`shell ${IS_REMOTE ? 'is-remote' : 'is-surface'} ${jb.current?.source === 'youtube' ? 'yt-active' : ''}`}
       style={coverColor ? { '--cover': coverColor } : undefined}>
+      <div className="user-bg" aria-hidden="true" />
       {!IS_REMOTE && (
         <>
           <AudioEngine jb={jb} audioRef={audioRef} />
@@ -145,7 +149,7 @@ function JukeboxApp({ info }) {
       )}
 
       <Sidebar view={view} navigate={navigate} connected={jb.connected} spotify={spotify} spotifyError={spotifyError}
-        onAdmin={() => setAdmin(true)} bluetooth={jb.bluetooth} info={info} />
+        onAdmin={() => setAdmin(true)} bluetooth={jb.bluetooth} info={info} onSecret={() => setBgDialog(true)} />
 
       <main className="main">
         {view === 'now' && <NowPlaying jb={jb} enqueue={enqueue} goSearch={() => setView('search')} />}
@@ -175,6 +179,7 @@ function JukeboxApp({ info }) {
         notify={notify} onClose={() => setPicker(null)} />}
 
       {admin && <AdminMenu onClose={() => setAdmin(false)} />}
+      {IS_REMOTE && bgDialog && <BackgroundDialog background={jb.background} notify={notify} onClose={() => setBgDialog(false)} />}
       {!IS_REMOTE && <Screensaver jb={jb} />}
       {!IS_REMOTE && <Splash connected={jb.connected} />}
 
@@ -186,7 +191,8 @@ function JukeboxApp({ info }) {
 
 // ---------- Seitenleiste ----------
 
-function Sidebar({ view, navigate, connected, spotify, spotifyError, onAdmin, bluetooth, info }) {
+function Sidebar({ view, navigate, connected, spotify, spotifyError, onAdmin, bluetooth, info, onSecret }) {
+  const secretTap = useSecretTaps(onSecret)
   // Logo 2 Sekunden gedrückt halten = Wartungsmenü (nur am Jukebox-Gerät)
   const longPress = useLongPress(onAdmin)
 
@@ -228,7 +234,8 @@ function Sidebar({ view, navigate, connected, spotify, spotifyError, onAdmin, bl
             ? <><Laptop size={14} /> Musik spielt auf der Jukebox</>
             : info && <><MonitorSpeaker size={14} /> <span>Wünsche: <b>{info.remote_url.replace(/^https?:\/\//, '')}</b></span></>}
         </div>
-        <div className="copyright">{COPYRIGHT}</div>
+        {/* Versteck: an der Fernbedienung 5× tippen öffnet «Eigener Hintergrund» */}
+        <div className="copyright" onClick={IS_REMOTE ? secretTap : undefined}>{COPYRIGHT}</div>
       </div>
     </aside>
   )

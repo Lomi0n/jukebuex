@@ -1,7 +1,8 @@
 /* JUKEBÜX – © 2026 Lomi0n. PolyForm Strict License 1.0.0 (siehe LICENSE). */
 import { useEffect, useRef, useState } from 'react'
-import { RotateCw, Minimize, Power, PowerOff, RefreshCcw, Settings2, X } from 'lucide-react'
-import { API, getJson } from './jukebox'
+import { RotateCw, Minimize, Power, PowerOff, RefreshCcw, Settings2, X, Palette, ChevronRight, ArrowLeft } from 'lucide-react'
+import { API, getJson, applySkin } from './jukebox'
+import { SkinPicker, SKINS } from './Skins'
 import { COPYRIGHT } from './Brand'
 
 // Verstecktes Wartungsmenü (nur am Jukebox-Gerät): Logo oben links 2 Sekunden gedrückt halten
@@ -49,7 +50,21 @@ export function AdminMenu({ onClose }) {
   const [done, setDone] = useState(null)
   const [error, setError] = useState(null)
   const [maintenance, setMaintenance] = useState(null)
+  const [skin, setSkin] = useState(document.documentElement.dataset.skin || 'standard')
+  const [page, setPage] = useState('main')     // 'main' = Liste, 'skins' = Aussehen wählen
+  const skinName = SKINS.find(s => s.key === skin)?.name || 'JUKEBÜX'
   useEffect(() => { getJson('/api/system/maintenance').then(setMaintenance) }, [])
+
+  async function pickSkin(key) {
+    setSkin(key); applySkin(key)
+    try {
+      const response = await fetch(`${API}/api/skin`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ skin: key }) })
+      if (!response.ok) throw new Error((await response.json()).detail)
+    } catch (e) {
+      setError(e.message || 'Skin konnte nicht gespeichert werden')
+    }
+  }
 
   async function run(key) {
     if (armed !== key) { setArmed(key); return }
@@ -77,10 +92,27 @@ export function AdminMenu({ onClose }) {
     <div className="dialog-backdrop" onPointerDown={e => e.target === e.currentTarget && onClose()}>
       <div className="dialog admin">
         <div className="admin-head">
-          <h2>Wartung</h2>
+          {page === 'skins'
+            ? <button className="admin-back" onClick={() => setPage('main')}><ArrowLeft size={20} /> <h2>Aussehen</h2></button>
+            : <h2>Wartung</h2>}
           <button className="icon-btn" onClick={onClose} aria-label="Schliessen"><X size={20} /></button>
         </div>
-        <p className="muted">Zum Ausführen zweimal tippen.</p>
+        {page === 'skins' ? (
+          <>
+            <p className="muted">Gilt sofort für den Jukebox-Bildschirm und alle Fernbedienungen.</p>
+            <SkinPicker value={skin} onPick={pickSkin} />
+            {error && <p className="muted error">{error}</p>}
+          </>
+        ) : (<>
+        <button className="admin-item" onClick={() => { setArmed(null); setPage('skins') }}>
+          <Palette size={22} />
+          <div>
+            <strong>Aussehen</strong>
+            <span>Skin: {skinName}</span>
+          </div>
+          <ChevronRight size={20} className="admin-chevron" />
+        </button>
+        <h3 className="admin-sub">System <span>Zum Ausführen zweimal tippen.</span></h3>
         {ITEMS.map(({ key, icon: Icon, label, hint }) => (
           <button key={key} className={`admin-item ${armed === key ? 'armed' : ''} ${['stop', 'reboot', 'poweroff'].includes(key) ? 'risky' : ''}`}
             onClick={() => run(key)}>
@@ -98,6 +130,7 @@ export function AdminMenu({ onClose }) {
             : 'Noch keine Wartung durchgeführt. Automatisch jeden Sonntag um 4 Uhr.'}
         </p>
         <p className="muted small admin-copyright">{COPYRIGHT} · PolyForm Strict License 1.0.0</p>
+        </>)}
       </div>
     </div>
   )

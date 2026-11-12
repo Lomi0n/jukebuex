@@ -9,6 +9,8 @@ Fernbedienung im Browser.
 - Webradio als Lückenfüller: läuft, sobald die Warteschlange leer ist (Sender aus [radio-browser.info](https://www.radio-browser.info))
 - Automatische Mixe nach Genre: jede Nacht neu aus dem, was hier läuft – mit Lieblingssongs und neuen Entdeckungen
   (Vorschläge über Deezer, optional Last.fm; abspielbar über YouTube oder Spotify)
+- Skins: JUKEBÜX, Retro 50er, 80er Synthwave, Swiss Edition, Kritzelbuch und Kritzelbuch Nacht
+  (Wahl im Wartungsmenü oder in der Einrichtung)
 - Fernbedienung im Browser: `http://<IP-der-Jukebox>:8000/remote`
 - Bluetooth-Wächter, der die Stereoanlage verbunden hält
 - Bildschirmschoner, verstecktes Wartungsmenü, wöchentliche automatische Wartung mit Updates

@@ -5,6 +5,30 @@ export const API = `${window.location.protocol}//${window.location.hostname}:800
 
 // Name und Untertitel aus der Einrichtung (wird beim Start einmal gesetzt)
 export const branding = { name: 'JUKEBÜX', subtitle: '' }
+
+// Skin (Aussehen) auf die ganze Seite anwenden – zuletzt gewählter Skin sofort, damit nichts aufblitzt
+const LIGHT_SKINS = ['swiss', 'kritzel']
+export function applySkin(skin) {
+  const root = document.documentElement
+  if (!skin || skin === 'standard') delete root.dataset.skin
+  else root.dataset.skin = skin
+  root.style.colorScheme = LIGHT_SKINS.includes(skin) ? 'light' : 'dark'
+  try { localStorage.setItem('jukebox-skin', skin || 'standard') } catch { /* egal */ }
+}
+try { applySkin(localStorage.getItem('jukebox-skin')) } catch { /* egal */ }
+
+// Eigener Hintergrund: Bild und Regler als CSS-Variablen auf die ganze Seite legen
+export function applyBackground(bg) {
+  const root = document.documentElement
+  if (!bg?.url) {
+    delete root.dataset.bg
+    return
+  }
+  root.dataset.bg = 'on'
+  root.style.setProperty('--user-bg', `url("${API}${bg.url}")`)
+  root.style.setProperty('--user-bg-dim', `${bg.dim ?? 55}%`)
+  root.style.setProperty('--user-bg-blur', `${bg.blur ?? 0}px`)
+}
 const WS = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.hostname}:8000/ws`
 
 // ---------- Server-Aufrufe ----------
@@ -159,6 +183,7 @@ export function useJukebox(isPlayer) {
   const [bluetooth, setBluetooth] = useState(null)
   const [radio, setRadio] = useState({ stations: [], station_id: null, on: false })
   const [mixes, setMixes] = useState({ lists: [], filler_id: null, running: false, source: 'youtube' })
+  const [background, setBackground] = useState({ url: null, dim: 55, blur: 0 })
   const [notice, setNotice] = useState(null)   // Meldung vom Server, z. B. YouTube-Kontingent leer
   const wsRef = useRef(null)
   const seekHandlers = useRef(new Set())
@@ -179,6 +204,11 @@ export function useJukebox(isPlayer) {
     } else if (msg.type === 'sounds') {
       setSounds(msg.sounds || [])
       setSoundVolume(msg.volume ?? 80)
+    } else if (msg.type === 'background') {
+      setBackground(msg)
+      applyBackground(msg)
+    } else if (msg.type === 'skin') {
+      applySkin(msg.skin)
     } else if (msg.type === 'notice') {
       setNotice(msg)
     } else if (msg.type === 'mixes') {
@@ -280,7 +310,7 @@ export function useJukebox(isPlayer) {
 
   return {
     queue, current, history, paused, volume, position, duration, connected, favorites,
-    sounds, soundVolume, onSoundEvent, changeSoundVolume, bluetooth, radio, mixes, notice,
+    sounds, soundVolume, onSoundEvent, changeSoundVolume, bluetooth, radio, mixes, notice, background,
     playing: Boolean(current) && !paused,
     setPosition, setDuration, sendPosition, onSeek, changeVolume, seekTo,
   }

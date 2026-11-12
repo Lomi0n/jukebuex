@@ -4,7 +4,8 @@ import {
   Check, Copy, Bluetooth, Speaker, LoaderCircle, ChevronLeft, ChevronRight, Music2, KeyRound,
   MonitorPlay, FolderOpen, Sparkles, Laptop, LogIn, Radar, TriangleAlert, PartyPopper, Lock
 } from 'lucide-react'
-import { API } from './jukebox'
+import { API, applySkin } from './jukebox'
+import { SkinPicker } from './Skins'
 import { Logo, COPYRIGHT } from './Brand'
 import Keyboard from './Keyboard'
 import './Setup.css'
@@ -55,7 +56,7 @@ export default function SetupWizard({ onDevice }) {
 
   async function refresh() {
     const result = await call('GET', '/api/setup')
-    if (result.data) setStatus(result.data)
+    if (result.data) { setStatus(result.data); applySkin(result.data.skin) }
     return result.data
   }
 
@@ -251,6 +252,7 @@ function Message({ error, ok, warn }) {
 // ---------- Schritte ----------
 
 function StepWelcome({ status, onDevice, go }) {
+  const [skin, setSkin] = useState(status.skin || 'standard')
   const [name, setName] = useState(status.name)
   const [subtitle, setSubtitle] = useState(status.subtitle)
   const [busy, setBusy] = useState(false)
@@ -275,6 +277,13 @@ function StepWelcome({ status, onDevice, go }) {
         <Field label="Untertitel (optional)" value={subtitle} onChange={setSubtitle} onDevice={onDevice}
           placeholder="z. B. Partykeller-Edition" maxLength={40} onEnter={save} />
       </div>
+      <h2 className="setup-skin-title">Aussehen</h2>
+      <p className="setup-lead">Wähle einen Skin – er gilt für den Jukebox-Bildschirm und die Fernbedienung.</p>
+      <SkinPicker value={skin} onPick={async key => {
+        setSkin(key); applySkin(key)
+        const result = await call('POST', '/api/skin', { skin: key })
+        if (result.error) setError(result.error)
+      }} />
       <Message error={error} />
       <Nav next={save} busy={busy} nextDisabled={!name.trim()} />
     </>

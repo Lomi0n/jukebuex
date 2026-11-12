@@ -1,0 +1,276 @@
+/* JUKEBÜX – © 2026 Lomi0n. PolyForm Strict License 1.0.0 (siehe LICENSE). */
+/* Skins: Jeder Skin setzt die Variablen aus App.css neu und gibt einzelnen Bauteilen ihren eigenen Charakter.
+   Aktiv über <html data-skin="…"> (siehe applySkin in jukebox.js). Ohne data-skin gilt der klassische Look. */
+/* Schriften der Skins sind mitgeliefert (laufen auch ohne Internet), nur lateinische Zeichen */
+@import '@fontsource/righteous/latin-400.css';
+@import '@fontsource/yellowtail/latin-400.css';
+@import '@fontsource/audiowide/latin-400.css';
+@import '@fontsource/inter-tight/latin-400.css';
+@import '@fontsource/inter-tight/latin-600.css';
+@import '@fontsource/inter-tight/latin-800.css';
+@import '@fontsource/inter-tight/latin-900.css';
+@import '@fontsource/gaegu/latin-400.css';
+@import '@fontsource/gaegu/latin-700.css';
+@import '@fontsource/patrick-hand/latin-400.css';
+
+/* ======================================================================
+   RETRO 50er – Nussbaumholz, Bernstein-Licht, Chrom und Leuchtröhren
+   ====================================================================== */
+:root[data-skin="retro"] {
+  --bg: #140a05; --panel: #2b160b; --panel-2: #3a1f10; --hover: #4a2915; --line: #5e3a1e;
+  --text: #fff3dc; --text-soft: #f0d9b5; --muted: #c79f73; --faint: #8a6a4a;
+  --accent: #ffb238; --accent-ink: #2a1300; --accent-hover: #ffd07a;
+  --surface: #341b0e; --key: #4a2a16; --key-hover: #6a3d1f; --sunken: #1c0e06;
+  --saver-bg: #120804; --glow: #5a2a0e; --danger: #ff7a5c; --warn: #ffd36b;
+  --field: #fff3dc; --field-ink: #2a1300; --field-icon: #8a5a30;
+  --head: 'Righteous', 'DM Sans', system-ui, sans-serif;
+  --brand: 'Yellowtail', 'Righteous', cursive;
+  --chrome: linear-gradient(180deg, #fdfdfd 0%, #c9c9c9 38%, #7d7d7d 52%, #e4e4e4 78%, #9a9a9a 100%);
+  --tubes: linear-gradient(90deg, #ff4d4d, #ff9a3c, #ffe066, #4dd77a, #4db8ff, #b56bff, #ff4d4d);
+}
+/* Holzmaserung auf den Seitenflächen */
+[data-skin="retro"] .sidebar, [data-skin="retro"] .queue-panel {
+  background:
+    repeating-linear-gradient(92deg, rgba(255, 220, 170, .035) 0 2px, transparent 2px 11px),
+    repeating-linear-gradient(88deg, rgba(0, 0, 0, .12) 0 1px, transparent 1px 23px),
+    linear-gradient(180deg, #3a1f10, #2b160b 60%, #24120a);
+  box-shadow: inset 0 0 0 1px #7a4b26, inset 0 1px 0 #ffe3b022;
+}
+[data-skin="retro"] .main { box-shadow: inset 0 0 0 1px #7a4b26; }
+[data-skin="retro"] .logo strong { font: 400 26px var(--brand); letter-spacing: 0; color: var(--accent);
+  text-shadow: 0 0 6px #ffb23899, 0 0 18px #ff7a1c66; }
+[data-skin="retro"] h1 { letter-spacing: .5px; }
+[data-skin="retro"] .now-text h1, [data-skin="retro"] .saver-text h1 { text-shadow: 0 0 22px #ffb23855; }
+[data-skin="retro"] .eyebrow { color: var(--accent); text-shadow: 0 0 8px #ffb23888; }
+[data-skin="retro"] .sidebar nav button.active { background: linear-gradient(90deg, #ffb23826, transparent); box-shadow: inset 3px 0 0 var(--accent); }
+[data-skin="retro"] .card { background: linear-gradient(180deg, #432412, #331a0d); box-shadow: inset 0 0 0 1px #6a4022, 0 6px 18px #0006; }
+[data-skin="retro"] .btn-primary { background: linear-gradient(180deg, #ffd07a, #ffb238 45%, #e88a12); box-shadow: 0 0 16px #ffb23855, inset 0 1px 0 #fff6; }
+[data-skin="retro"] .btn-secondary, [data-skin="retro"] .chip { border-color: #8a5a30; }
+[data-skin="retro"] .chip.active { box-shadow: 0 0 12px #ffb23866; }
+/* Bedienleiste wie die Front einer Musikbox: Chromleiste mit Leuchtröhren */
+[data-skin="retro"] .playerbar { position: relative; border-radius: 16px;
+  box-shadow: inset 0 0 0 1px #7a4b26, inset 0 2px 0 #ffe3b018; }
+[data-skin="retro"] .playerbar::before { content: ""; position: absolute; left: 18px; right: 18px; top: -3px; height: 6px; border-radius: 6px;
+  background: var(--tubes); background-size: 200% 100%; box-shadow: 0 0 14px #ffb238aa, 0 0 4px #fff8;
+  animation: retro-tubes 8s linear infinite; }
+@keyframes retro-tubes { to { background-position: -200% 0; } }
+[data-skin="retro"] .pb-play { background: radial-gradient(circle at 35% 28%, #fff, #e6e6e6 30%, #9c9c9c 70%, #5e5e5e);
+  color: #2a1300; box-shadow: 0 0 0 3px #3a1f10, 0 0 0 5px #b9b9b9, 0 6px 18px #000a; }
+[data-skin="retro"] .now-cover, [data-skin="retro"] .saver-cover { box-shadow: 0 0 0 6px #2b160b, 0 0 0 9px #c8c8c8, 0 24px 70px #000c; }
+[data-skin="retro"] .splash h1, [data-skin="retro"] .saver-idle h1 { font: 400 96px var(--brand); letter-spacing: 0; color: var(--accent);
+  text-shadow: 0 0 8px #ffb238, 0 0 28px #ff7a1c99, 0 0 60px #ff7a1c55; }
+[data-skin="retro"] .splash::after, [data-skin="retro"] .saver::after { content: ""; position: absolute; left: 10%; right: 10%; bottom: 90px; height: 6px;
+  border-radius: 6px; background: var(--tubes); background-size: 200% 100%; opacity: .8; box-shadow: 0 0 20px #ffb23888;
+  animation: retro-tubes 8s linear infinite; }
+[data-skin="retro"] .saver::after { bottom: 84px; z-index: 0; }
+
+/* ======================================================================
+   80er SYNTHWAVE – Neon-Pink und Cyan, Sonnenuntergang und Gitter
+   ====================================================================== */
+:root[data-skin="synthwave"] {
+  --bg: #0a0118; --panel: #140630; --panel-2: #1f0b45; --hover: #2a1159; --line: #3a1a72;
+  --text: #fdf0ff; --text-soft: #e6c8ff; --muted: #a58bd8; --faint: #6e58a0;
+  --accent: #ff2fb9; --accent-ink: #1a0018; --accent-hover: #ff79d4; --cyan: #29f0ff;
+  --surface: #1a0838; --key: #2a1159; --key-hover: #3d1a7a; --sunken: #0d0322;
+  --saver-bg: #07010f; --glow: #3a0a5e; --danger: #ff5277; --warn: #ffe156;
+  --field: #1f0b45; --field-ink: #fdf0ff; --field-icon: #29f0ff;
+  --head: 'Audiowide', 'DM Sans', system-ui, sans-serif; --brand: 'Audiowide', sans-serif;
+  --sunset: linear-gradient(90deg, #ff2fb9, #ff6a5c 55%, #ffb03a);
+}
+[data-skin="synthwave"] .sidebar, [data-skin="synthwave"] .queue-panel, [data-skin="synthwave"] .main {
+  box-shadow: inset 0 0 0 1px #ff2fb933, inset 0 0 40px #ff2fb90d; }
+[data-skin="synthwave"] .logo strong { color: var(--cyan); text-shadow: 0 0 8px #29f0ffaa, 0 0 22px #29f0ff55; letter-spacing: 2px; }
+[data-skin="synthwave"] h1 { text-shadow: 0 0 14px #ff2fb977; }
+[data-skin="synthwave"] .eyebrow { color: var(--cyan); text-shadow: 0 0 10px #29f0ffaa; }
+[data-skin="synthwave"] .sidebar nav button.active { background: #ff2fb918; box-shadow: inset 0 0 0 1px #ff2fb966, 0 0 14px #ff2fb933; }
+[data-skin="synthwave"] .sidebar nav button.active svg { color: var(--cyan); filter: drop-shadow(0 0 6px #29f0ff); }
+[data-skin="synthwave"] .card { box-shadow: inset 0 0 0 1px #3a1a72; }
+[data-skin="synthwave"] .card:hover { box-shadow: inset 0 0 0 1px #29f0ff88, 0 0 18px #29f0ff33; }
+[data-skin="synthwave"] .btn-primary, [data-skin="synthwave"] .toast:not(.warn) { background: var(--sunset); color: #fff; text-shadow: 0 1px 2px #0005;
+  box-shadow: 0 0 18px #ff2fb966; }
+[data-skin="synthwave"] .chip.active { background: var(--accent); color: #fff; box-shadow: 0 0 14px #ff2fb988; }
+[data-skin="synthwave"] .search-bar { border: 2px solid var(--cyan); box-shadow: 0 0 18px #29f0ff44, inset 0 0 12px #29f0ff1a; }
+[data-skin="synthwave"] .playerbar { position: relative; }
+[data-skin="synthwave"] .playerbar::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--cyan), #ff2fb9, transparent); box-shadow: 0 0 12px var(--cyan); }
+[data-skin="synthwave"] .pb-play { background: var(--sunset); color: #fff; box-shadow: 0 0 22px #ff2fb988; }
+[data-skin="synthwave"] .now-cover { box-shadow: 0 0 0 2px #29f0ff, 0 0 30px #29f0ff66, 0 0 80px #ff2fb944; }
+[data-skin="synthwave"] .eq i { background: var(--cyan); box-shadow: 0 0 6px var(--cyan); }
+/* Sonnenuntergang mit Gitterboden auf Startbildschirm und Bildschirmschoner */
+[data-skin="synthwave"] .splash {
+  background:
+    radial-gradient(circle at 50% 76%, #ffb03a 0, #ff2fb9 8%, transparent 20%),
+    linear-gradient(180deg, #0a0118 0%, #2a0845 55%, #5a0f5e 76%, #0a0118 76.3%); }
+[data-skin="synthwave"] .splash::after, [data-skin="synthwave"] .saver::after { content: ""; position: absolute; left: -50%; right: -50%; bottom: 0; height: 24%;
+  background-image: linear-gradient(#29f0ff66 2px, transparent 2px), linear-gradient(90deg, #ff2fb966 2px, transparent 2px);
+  background-size: 70px 44px; transform: perspective(260px) rotateX(62deg); transform-origin: top;
+  animation: synth-grid 3s linear infinite; pointer-events: none; }
+@keyframes synth-grid { to { background-position: 0 44px; } }
+[data-skin="synthwave"] .splash > :not(.splash-status):not(.splash-copyright) { position: relative; z-index: 1; }
+[data-skin="synthwave"] .splash-status, [data-skin="synthwave"] .splash-copyright { z-index: 1; }
+[data-skin="synthwave"] .splash h1, [data-skin="synthwave"] .saver-idle h1 { color: #fff; letter-spacing: 8px;
+  text-shadow: 0 0 10px #ff2fb9, 0 0 30px #ff2fb9aa, 0 0 60px #29f0ff55; }
+[data-skin="synthwave"] .saver::after { opacity: .55; height: 30%; }
+[data-skin="synthwave"] .saver-drift, [data-skin="synthwave"] .saver-clock, [data-skin="synthwave"] .saver-foot { z-index: 1; }
+
+/* ======================================================================
+   SWISS EDITION – hell, Rot-Weiss, strenge Typografie, klare Kanten
+   ====================================================================== */
+:root[data-skin="swiss"] {
+  --bg: #e6e3de; --panel: #ffffff; --panel-2: #f4f2ee; --hover: #ece9e4; --line: #dcd8d1;
+  --text: #141414; --text-soft: #333333; --muted: #6e6a64; --faint: #a39e96;
+  --accent: #e2001a; --accent-ink: #ffffff; --accent-hover: #ff2a3f;
+  --surface: #ffffff; --key: #ebe8e3; --key-hover: #d9d5ce; --sunken: #f4f2ee;
+  --saver-bg: #f4f2ee; --glow: #fde8ea; --danger: #c8102e; --warn: #b86a00; --warn-ink: #ffffff;
+  --shadow: rgb(60 30 30 / .28); --field: #f4f2ee; --field-ink: #141414; --field-icon: #6e6a64; --youtube: #d40000;
+  --body: 'Inter Tight', 'DM Sans', system-ui, sans-serif; --head: 'Inter Tight', 'DM Sans', system-ui, sans-serif;
+  --brand: 'Inter Tight', sans-serif; --radius-pill: 4px; --ok: #1f9d55;
+}
+[data-skin="swiss"] .panel, [data-skin="swiss"] .main { border-radius: 4px; }
+[data-skin="swiss"] h1, [data-skin="swiss"] h2 { font-weight: 800; letter-spacing: -.03em; }
+[data-skin="swiss"] .logo strong { font-weight: 900; letter-spacing: -.02em; font-size: 21px; }
+[data-skin="swiss"] .logo-version { color: var(--accent); }
+[data-skin="swiss"] .eyebrow { letter-spacing: .14em; }
+/* Hintergrund nur leicht nach der Coverfarbe tönen, damit dunkle Schrift lesbar bleibt */
+[data-skin="swiss"] .main { background: linear-gradient(180deg, color-mix(in srgb, var(--cover) 14%, var(--panel)) 0, var(--panel) 380px); }
+[data-skin="swiss"] .playerbar { background: var(--panel); border-radius: 4px; box-shadow: inset 0 4px 0 var(--accent); }
+[data-skin="swiss"] .pb-play { background: var(--accent); color: #fff; }
+[data-skin="swiss"] .sidebar nav button { border-radius: 2px; }
+[data-skin="swiss"] .sidebar nav button.active { background: var(--accent); color: #fff; }
+[data-skin="swiss"] .sidebar nav button.active svg { color: #fff; }
+[data-skin="swiss"] .card, [data-skin="swiss"] .row, [data-skin="swiss"] .chip, [data-skin="swiss"] .btn-primary,
+[data-skin="swiss"] .btn-secondary, [data-skin="swiss"] .cover, [data-skin="swiss"] .now-cover, [data-skin="swiss"] .status-panel,
+[data-skin="swiss"] .dialog, [data-skin="swiss"] .toast, [data-skin="swiss"] .link-card, [data-skin="swiss"] .row-play { border-radius: 3px; }
+[data-skin="swiss"] .card { background: var(--panel-2); border-top: 3px solid transparent; }
+[data-skin="swiss"] .card:hover, [data-skin="swiss"] .card.active, [data-skin="swiss"] .card.mix-active { border-top-color: var(--accent); }
+[data-skin="swiss"] .chip.active { background: var(--text); color: var(--panel); }
+[data-skin="swiss"] .search-bar { border: 2px solid var(--text); background: var(--panel); }
+[data-skin="swiss"] .splash { background: var(--panel); }
+[data-skin="swiss"] .splash h1, [data-skin="swiss"] .saver-idle h1 { font-weight: 900; letter-spacing: -.04em; font-size: 104px; }
+[data-skin="swiss"] .splash::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 36px; background: var(--accent); }
+[data-skin="swiss"] .saver-shade { background: radial-gradient(circle at 30% 50%, transparent 0, #f4f2eecc 75%); }
+[data-skin="swiss"] .saver-bg { opacity: .35; }
+[data-skin="swiss"] .saver-clock strong { font-weight: 900; }
+
+/* ======================================================================
+   KRITZELBUCH – Wachsmalstift auf Papier, handgezeichnete Ränder
+   ====================================================================== */
+:root[data-skin="kritzel"] {
+  --bg: #e9dfca; --panel: #fffdf7; --panel-2: #f8f1e1; --hover: #f1e7d1; --line: #d9cbab;
+  --text: #2d2a26; --text-soft: #4a453e; --muted: #7c7365; --faint: #b3a78f;
+  --accent: #3c7be0; --accent-ink: #ffffff; --accent-hover: #5b93ec;
+  --surface: #fffdf7; --key: #f1e7d1; --key-hover: #e6d8b9; --sunken: #f8f1e1;
+  --saver-bg: #f6efe0; --glow: #e3edfb; --danger: #d9534f; --warn: #e8a317; --warn-ink: #2d2a26;
+  --shadow: rgb(80 60 30 / .25); --field: #ffffff; --field-ink: #2d2a26; --field-icon: #7c7365;
+  --body: 'Patrick Hand', 'Comic Sans MS', system-ui, sans-serif; --head: 'Gaegu', 'Patrick Hand', cursive;
+  --brand: 'Gaegu', cursive;
+  --pencil: #2d2a26; --ok: #2fa36b;
+  --k-lines: #3c7be01f; --k-margin: #f3a6a688; --k-note: #fff3a8; --k-note-ink: #2d2a26;
+  --wobble: 255px 14px 225px 14px / 14px 225px 14px 255px;   /* «handgezeichnete» Ecken */
+  --wobble-soft: 22px 8px 20px 9px / 9px 20px 8px 22px;
+}
+[data-skin^="kritzel"] body { font-size: 17px; }
+/* Linienpapier im Hauptbereich */
+[data-skin^="kritzel"] .main {
+  background:
+    linear-gradient(90deg, transparent 54px, var(--k-margin) 54px 56px, transparent 56px),
+    repeating-linear-gradient(180deg, transparent 0 33px, var(--k-lines) 33px 34px),
+    var(--panel);
+  background-attachment: local; }
+[data-skin^="kritzel"] .panel, [data-skin^="kritzel"] .main { border-radius: var(--wobble-soft); border: 2px solid var(--pencil); }
+[data-skin^="kritzel"] .logo strong { font: 700 30px var(--brand); letter-spacing: 1px; transform: rotate(-2deg); }
+[data-skin^="kritzel"] h1 { font-weight: 700; text-decoration: underline wavy #ff8a3d; text-decoration-thickness: 3px; text-underline-offset: 8px; }
+[data-skin^="kritzel"] h1, [data-skin^="kritzel"] h2, [data-skin^="kritzel"] h3, [data-skin^="kritzel"] .sidebar nav button,
+[data-skin^="kritzel"] .logo strong { letter-spacing: -.5px; }
+[data-skin^="kritzel"] h2 { font-weight: 700; }
+[data-skin^="kritzel"] .eyebrow { font-family: var(--head); font-size: 17px; letter-spacing: 1px; text-transform: none; color: #ff8a3d; }
+[data-skin^="kritzel"] .sidebar nav button { font-family: var(--head); font-size: 21px; font-weight: 700; }
+[data-skin^="kritzel"] .sidebar nav button.active { background: var(--k-note); border-radius: var(--wobble); box-shadow: 2px 3px 0 var(--pencil); color: var(--k-note-ink); }
+/* Jedes Menü-Symbol in einer anderen Stiftfarbe */
+[data-skin^="kritzel"] .sidebar nav button:nth-child(7n+1) svg { color: #3c7be0; }
+[data-skin^="kritzel"] .sidebar nav button:nth-child(7n+2) svg { color: #ff8a3d; }
+[data-skin^="kritzel"] .sidebar nav button:nth-child(7n+3) svg { color: #2fa36b; }
+[data-skin^="kritzel"] .sidebar nav button:nth-child(7n+4) svg { color: #9b59d0; }
+[data-skin^="kritzel"] .sidebar nav button:nth-child(7n+5) svg { color: #e0558f; }
+[data-skin^="kritzel"] .sidebar nav button:nth-child(7n+6) svg { color: #19a3b5; }
+[data-skin^="kritzel"] .sidebar nav button:nth-child(7n+7) svg { color: #c28a1e; }
+[data-skin^="kritzel"] .card, [data-skin^="kritzel"] .btn-primary, [data-skin^="kritzel"] .btn-secondary, [data-skin^="kritzel"] .chip,
+[data-skin^="kritzel"] .toast, [data-skin^="kritzel"] .link-card, [data-skin^="kritzel"] .search-bar, [data-skin^="kritzel"] .status-panel,
+[data-skin^="kritzel"] .dialog { border-radius: var(--wobble); border: 2px solid var(--pencil); }
+[data-skin^="kritzel"] .card { background: var(--panel); box-shadow: 3px 4px 0 color-mix(in srgb, var(--pencil) 13%, transparent); }
+[data-skin^="kritzel"] .grid .card:nth-child(odd) { transform: rotate(-.8deg); }
+[data-skin^="kritzel"] .grid .card:nth-child(even) { transform: rotate(.7deg); }
+[data-skin^="kritzel"] .card:hover { transform: rotate(0) scale(1.02); }
+[data-skin^="kritzel"] .cover, [data-skin^="kritzel"] .now-cover { border-radius: var(--wobble-soft); border: 2px solid var(--pencil); }
+[data-skin^="kritzel"] .btn-primary { box-shadow: 3px 3px 0 var(--pencil); font-family: var(--head); font-size: 19px; }
+[data-skin^="kritzel"] .btn-primary:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--pencil); }
+[data-skin^="kritzel"] .chip.active { background: var(--k-note); color: var(--k-note-ink); }
+[data-skin^="kritzel"] .row:hover { background: color-mix(in srgb, var(--k-note) 33%, transparent); }
+[data-skin^="kritzel"] .playerbar { background: var(--panel); border-radius: var(--wobble-soft); border: 2px dashed var(--pencil); }
+[data-skin^="kritzel"] .pb-play { background: var(--accent); color: #fff; border: 2px solid var(--pencil); border-radius: 48% 52% 50% 50% / 52% 48% 52% 48%;
+  box-shadow: 2px 3px 0 var(--pencil); }
+[data-skin^="kritzel"] .eq i { background: #ff8a3d; }
+[data-skin^="kritzel"] .eq i:nth-child(2) { background: #2fa36b; }
+[data-skin^="kritzel"] .eq i:nth-child(3) { background: #3c7be0; }
+[data-skin^="kritzel"] .eq i:nth-child(4) { background: #9b59d0; }
+[data-skin^="kritzel"] .splash { background:
+    repeating-linear-gradient(180deg, transparent 0 39px, var(--k-lines) 39px 40px), var(--saver-bg); }
+[data-skin^="kritzel"] .splash h1, [data-skin^="kritzel"] .saver-idle h1 { font: 700 104px var(--brand); letter-spacing: 4px; text-decoration: none;
+  color: var(--pencil); transform: rotate(-3deg); text-shadow: 4px 4px 0 #ffd23f, 8px 8px 0 color-mix(in srgb, var(--accent) 33%, transparent); }
+[data-skin^="kritzel"] .splash p { font-family: var(--head); font-size: 24px; color: #ff8a3d; }
+[data-skin^="kritzel"] .saver-shade { background: radial-gradient(circle at 30% 50%, transparent 0, color-mix(in srgb, var(--saver-bg) 87%, transparent) 75%); }
+[data-skin^="kritzel"] .saver-bg { opacity: .3; }
+[data-skin^="kritzel"] .saver-text h1 { text-decoration: none; }
+[data-skin^="kritzel"] .keyboard .kb-key { border: 2px solid var(--pencil); border-radius: var(--wobble-soft); }
+
+/* KRITZELBUCH NACHT – dasselbe Heft, dunkel: helle Kreide- und Wachsmalstift-Striche */
+:root[data-skin="kritzel-dark"] {
+  --bg: #121419; --panel: #1f2229; --panel-2: #272b33; --hover: #2f343e; --line: #3b414c;
+  --text: #f1ebdd; --text-soft: #d9d2c3; --muted: #a59e90; --faint: #6f6a60;
+  --accent: #6ea8ff; --accent-ink: #0f1520; --accent-hover: #8dbbff;
+  --surface: #23262d; --key: #2d313a; --key-hover: #3a3f4a; --sunken: #191b20;
+  --saver-bg: #15171c; --glow: #1c2840; --danger: #ff7b72; --warn: #ffc94a; --warn-ink: #2d2a26;
+  --shadow: #000; --field: #272b33; --field-ink: #f1ebdd; --field-icon: #a59e90;
+  --body: 'Patrick Hand', 'Comic Sans MS', system-ui, sans-serif; --head: 'Gaegu', 'Patrick Hand', cursive;
+  --brand: 'Gaegu', cursive;
+  --pencil: #e9e3d5; --ok: #5fd08f;
+  --k-lines: #6ea8ff1c; --k-margin: #ff8a8a55; --k-note: #ffe066; --k-note-ink: #2d2a26;
+  --wobble: 255px 14px 225px 14px / 14px 225px 14px 255px;
+  --wobble-soft: 22px 8px 20px 9px / 9px 20px 8px 22px;
+}
+[data-skin="kritzel-dark"] .sidebar nav button:nth-child(7n+1) svg { color: #6ea8ff; }
+[data-skin="kritzel-dark"] .sidebar nav button:nth-child(7n+4) svg { color: #c08bff; }
+[data-skin="kritzel-dark"] .sidebar nav button:nth-child(7n+6) svg { color: #4fd6e6; }
+[data-skin="kritzel-dark"] .sidebar nav button:nth-child(7n+7) svg { color: #f0b84a; }
+[data-skin="kritzel-dark"] .eq i:nth-child(3) { background: #6ea8ff; }
+[data-skin="kritzel-dark"] .splash h1, [data-skin="kritzel-dark"] .saver-idle h1 { text-shadow: 4px 4px 0 #b8860b, 8px 8px 0 #6ea8ff44; }
+
+/* ======================================================================
+   EIGENER HINTERGRUND (versteckte Funktion) – funktioniert mit jedem Skin.
+   html[…] hat Vorrang vor den Skin-Regeln. Abdunkeln = Skin-Hintergrundfarbe darüber
+   (bei hellen Skins wird so automatisch aufgehellt).
+   ====================================================================== */
+.user-bg { display: none; }
+html[data-bg="on"] .user-bg { display: block; position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+html[data-bg="on"] .user-bg::before { content: ""; position: absolute; inset: calc(var(--user-bg-blur) * -2);
+  background: var(--user-bg) center / cover no-repeat; filter: blur(var(--user-bg-blur)); }
+html[data-bg="on"] .user-bg::after { content: ""; position: absolute; inset: 0;
+  background: color-mix(in srgb, var(--bg) var(--user-bg-dim), transparent); }
+html[data-bg="on"] body, html[data-bg="on"] #root, html[data-bg="on"] .shell { background: transparent; }
+html[data-bg="on"] .sidebar, html[data-bg="on"] .queue-panel {
+  background: color-mix(in srgb, var(--panel) 82%, transparent); }
+html[data-bg="on"] .main {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--cover) 28%, transparent) 0, transparent 420px),
+    color-mix(in srgb, var(--panel) 50%, transparent); }
+html[data-bg="on"] .playerbar { background: color-mix(in srgb, var(--bg) 82%, transparent); }
+html[data-bg="on"] .splash {
+  background: linear-gradient(color-mix(in srgb, var(--saver-bg) 40%, transparent), color-mix(in srgb, var(--saver-bg) 40%, transparent)),
+    var(--user-bg) center / cover no-repeat; }
+html[data-bg="on"] .splash::after, html[data-bg="on"] .saver::after, html[data-bg="on"] .splash::before { display: none; }
+html[data-bg="on"] .saver { background: var(--user-bg) center / cover no-repeat; }
+html[data-bg="on"] .saver-shade { background: radial-gradient(circle at 30% 50%, color-mix(in srgb, var(--saver-bg) 25%, transparent) 0,
+  color-mix(in srgb, var(--saver-bg) 80%, transparent) 75%); }
+html[data-bg="on"] .splash h1, html[data-bg="on"] .splash p, html[data-bg="on"] .splash-status, html[data-bg="on"] .splash-copyright,
+html[data-bg="on"] .saver-clock, html[data-bg="on"] .saver-foot, html[data-bg="on"] .saver-idle {
+  text-shadow: 0 2px 4px color-mix(in srgb, var(--saver-bg) 70%, transparent), 0 0 24px color-mix(in srgb, var(--saver-bg) 80%, transparent); }
+html[data-bg="on"] .splash p { color: var(--text); }
