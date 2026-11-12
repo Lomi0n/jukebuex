@@ -179,6 +179,7 @@ cp -r "$SRC/frontend/dist" "$JB/frontend/dist.new"
 rm -rf "$JB/frontend/dist"
 mv "$JB/frontend/dist.new" "$JB/frontend/dist"
 install -m 644 "$SRC/VERSION" "$JB/VERSION"
+[ -f "$SRC/LICENSE" ] && install -m 644 "$SRC/LICENSE" "$JB/LICENSE"
 install -m 755 "$SRC/install.sh" "$JB/system/install.sh"
 for script in jukebox-bluetooth jukebox-update jukebox-kiosk jukebox-restart jukebox-stop; do
   install -m 755 "$SRC/scripts/$script" "$BIN/$script"

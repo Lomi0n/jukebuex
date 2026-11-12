@@ -157,5 +157,15 @@ Die automatische Anmeldung wird unter Einstellungen → Benutzer wieder ausgesch
 
 ## Lizenz
 
-MIT – siehe [LICENSE](LICENSE). Spotify und YouTube sind Marken ihrer jeweiligen Inhaber.
+Copyright (c) 2026 Dominick. Ab Version 1.2.1 gilt die
+[PolyForm Strict License 1.0.0](LICENSE) – kurz zusammengefasst (massgebend ist der Lizenztext):
+
+- **Erlaubt:** die JUKEBÜX für private, nicht-kommerzielle Zwecke installieren und nutzen.
+- **Nicht erlaubt:** den Code verändern, darauf aufbauen, ihn kopieren und weitergeben
+  (auch nicht als Fork oder eigene Version) oder ihn kommerziell nutzen.
+- Andere Nutzungen nur mit schriftlicher Erlaubnis des Urhebers – bitte über GitHub anfragen.
+
+Versionen bis und mit 1.2.0 wurden unter der MIT-Lizenz veröffentlicht; für diese Versionen gilt sie weiter.
+Eingebundene Bibliotheken (z. B. React, FastAPI) stehen unter ihren eigenen Lizenzen.
+Spotify, YouTube, Deezer und Last.fm sind Marken ihrer jeweiligen Inhaber.
 Die JUKEBÜX nutzt deren offizielle Schnittstellen und steht in keiner Verbindung zu ihnen.

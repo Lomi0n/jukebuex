@@ -17,7 +17,7 @@ echo "== Oberfläche bauen"
 
 echo "== Paket schnüren (Version $VERSION)"
 rm -rf release && mkdir -p release/jukebux/frontend
-cp -r VERSION install.sh backend scripts release/jukebux/
+cp -r VERSION LICENSE install.sh backend scripts release/jukebux/
 cp -r frontend/dist release/jukebux/frontend/
 # Niemals Schlüssel oder Daten mitliefern
 rm -rf release/jukebux/backend/{config.env,data.json,spotify_token.json,plays.json,mixes.json,mixcache.json,*.tmp,__pycache__,.venv}
