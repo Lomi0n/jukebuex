@@ -23,7 +23,8 @@ function quality(station) {
 // ---------- Bereich "Radio" ----------
 
 export function RadioView({ jb, notify }) {
-  const { radio, current, playing } = jb
+  const { radio, current, playing, mixes } = jb
+  const fillerMix = mixes.lists.find(m => m.id === mixes.filler_id)
   const [editing, setEditing] = useState(false)
   const radioPlaying = current?.source === 'radio'
 
@@ -60,6 +61,11 @@ export function RadioView({ jb, notify }) {
         </div>
       </div>
 
+      {fillerMix && (
+        <p className="radio-filler-note">
+          Als Lückenfüller ist gerade <b>{fillerMix.name}</b> gewählt. Ein Tipp auf einen Sender ersetzt ihn.
+        </p>
+      )}
       <h2 className="radio-heading">Meine Sender</h2>
       {radio.stations.length === 0 ? (
         <div className="radio-empty">

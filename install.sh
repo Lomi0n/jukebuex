@@ -173,7 +173,7 @@ fi
 # ---------------------------------------------------------------------
 say "4/8 Programmdateien einspielen"
 mkdir -p "$JB/backend" "$JB/frontend" "$JB/sounds" "$JB/system" "$BIN" "$UNITS"
-install -m 644 "$SRC/backend/main.py" "$SRC/backend/requirements.txt" "$JB/backend/"
+install -m 644 "$SRC/backend/"*.py "$SRC/backend/requirements.txt" "$JB/backend/"
 rm -rf "$JB/frontend/dist.new"
 cp -r "$SRC/frontend/dist" "$JB/frontend/dist.new"
 rm -rf "$JB/frontend/dist"

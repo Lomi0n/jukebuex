@@ -7,6 +7,8 @@ Fernbedienung im Browser.
 
 - Vollbild-Oberfläche für den Touchscreen mit Warteschlange, Verlauf, Favoritenlisten und Soundboard
 - Webradio als Lückenfüller: läuft, sobald die Warteschlange leer ist (Sender aus [radio-browser.info](https://www.radio-browser.info))
+- Automatische Mixe nach Genre: jede Nacht neu aus dem, was hier läuft – mit Lieblingssongs und neuen Entdeckungen
+  (Vorschläge über Deezer, optional Last.fm; abspielbar über YouTube oder Spotify)
 - Fernbedienung im Browser: `http://<IP-der-Jukebox>:8000/remote`
 - Bluetooth-Wächter, der die Stereoanlage verbunden hält
 - Bildschirmschoner, verstecktes Wartungsmenü, wöchentliche automatische Wartung mit Updates
@@ -19,6 +21,7 @@ Fernbedienung im Browser.
 | System | Ubuntu 24.04 oder 26.04 Desktop (x86_64), auch Ableger wie AnduinOS, Zorin OS oder Linux Mint |
 | Spotify | Spotify-**Premium**-Konto und eine eigene, kostenlose Spotify-Entwickler-App (der Assistent erklärt die Schritte) |
 | YouTube | kostenloser API-Schlüssel von Google (optional) |
+| Last.fm | kostenloser API-Schlüssel für treffsicherere Mixe (optional) |
 | Lautsprecher | Bluetooth-Stereoanlage oder -Box (optional) |
 
 Spotify spielt nur in Google Chrome. Das Installationsskript richtet Chrome selbst ein.
@@ -46,7 +49,7 @@ Nach der Installation erscheint auf dem Bildschirm der **Einrichtungsassistent**
 1. Name der Jukebox
 2. Spotify-App anlegen (Client ID und Secret)
 3. Bei Spotify anmelden (nur direkt am Jukebox-Bildschirm möglich)
-4. YouTube-API-Schlüssel
+4. YouTube-API-Schlüssel (und optional Last.fm-Schlüssel für die Mixe)
 5. Bluetooth-Lautsprecher suchen und koppeln
 6. Ordner für lokale Musik
 
@@ -109,7 +112,7 @@ starten, dann in `frontend/` `npm install` und `npm run dev`.
 ## Aufbau
 
 ```
-backend/        FastAPI-Server (main.py), Einstellungen in config.env
+backend/        FastAPI-Server (main.py), automatische Mixe (mixer.py), Einstellungen in config.env
 frontend/       React-Oberfläche (Vite)
 scripts/        Kiosk-Start, Bluetooth-Wächter, Wartung
 install.sh      Installation und Aktualisierung
@@ -122,6 +125,9 @@ Auf dem Gerät:
 ~/jukebox/backend/config.env           Schlüssel und Einstellungen (nur für den Benutzer lesbar)
 ~/jukebox/backend/data.json            Warteschlange, Verlauf, Favoriten, Sounds
 ~/jukebox/backend/spotify_token.json   Spotify-Anmeldung
+~/jukebox/backend/plays.json           Hörprofil für die Mixe (was wie oft lief)
+~/jukebox/backend/mixes.json           automatische Mixe
+~/jukebox/backend/mixcache.json        Zwischenspeicher (Künstlerinfos, gefundene Spotify-/YouTube-Titel)
 ~/jukebox/sounds/                      Soundboard-Dateien
 ~/jukebox-backups/                     Sicherungen (die letzten 10)
 ```

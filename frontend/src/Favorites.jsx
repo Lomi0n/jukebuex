@@ -5,6 +5,7 @@ import {
 import { actions, favoriteActions } from './jukebox'
 import { Cover, SortableList, TrackRow, trackKey } from './components'
 import Keyboard from './Keyboard'
+import { MixesSection, MixListView } from './Mixes'
 
 const IS_REMOTE = window.location.pathname.startsWith('/remote')
 
@@ -118,16 +119,21 @@ export function FavoritePicker({ track, anchor, lists, notify, onClose }) {
 
 // ---------- Bereich "Favoriten" ----------
 
-export function FavoritesView({ lists, openId, setOpenId, enqueue, enqueueMany, notify }) {
+export function FavoritesView({ lists, mixes, current, openId, setOpenId, enqueue, enqueueMany, notify }) {
   const open = lists.find(l => l.id === openId)
   if (open) {
     return <FavoriteListView list={open} onBack={() => setOpenId(null)}
       enqueue={enqueue} enqueueMany={enqueueMany} notify={notify} />
   }
-  return <FavoritesHome lists={lists} open={setOpenId} notify={notify} />
+  const mix = mixes.lists.find(m => m.id === openId)
+  if (mix) {
+    return <MixListView mix={mix} mixes={mixes} current={current} onBack={() => setOpenId(null)}
+      enqueue={enqueue} enqueueMany={enqueueMany} notify={notify} />
+  }
+  return <FavoritesHome lists={lists} mixes={mixes} open={setOpenId} notify={notify} />
 }
 
-function FavoritesHome({ lists, open, notify }) {
+function FavoritesHome({ lists, mixes, open, notify }) {
   const [creating, setCreating] = useState(false)
 
   async function create(name) {
@@ -149,7 +155,12 @@ function FavoritesHome({ lists, open, notify }) {
         <button className="btn-primary" onClick={() => setCreating(true)}><Plus size={20} /> Neue Liste</button>
       </div>
 
-      {lists.length === 0 ? (
+      <MixesSection mixes={mixes} open={open} notify={notify} />
+      <h2 className="radio-heading">Eigene Listen</h2>
+
+      {lists.length === 0 && mixes.lists.length > 0 ? (
+        <p className="muted">Noch keine eigenen Listen. Tippe bei einem Titel auf den Stern ☆, um ihn in eine Liste zu legen.</p>
+      ) : lists.length === 0 ? (
         <div className="search-start">
           <Star size={56} strokeWidth={1.2} />
           <h2>Noch keine Favoriten</h2>

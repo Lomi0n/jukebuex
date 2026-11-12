@@ -3,7 +3,7 @@ import {
   Disc3, Search, HardDrive, ListMusic, Play, Pause, SkipBack, SkipForward,
   Volume2, VolumeX, Laptop, MonitorSpeaker, History as HistoryIcon, X,
   LibraryBig, ListStart, Shuffle, ArrowLeft, Heart, Star, Link2, ListVideo, CircleDot,
-  Bluetooth, BluetoothConnected, BluetoothOff, Server, Radio as RadioIcon, Power
+  Bluetooth, BluetoothConnected, BluetoothOff, Server, Radio as RadioIcon, Power, Repeat
 } from 'lucide-react'
 import { useJukebox, actions, radioActions, getJson, getResult, API, branding } from './jukebox'
 import AudioEngine from './AudioEngine'
@@ -87,11 +87,16 @@ function JukeboxApp({ info }) {
     }
   }, [])
 
-  function notify(text, kind = 'ok') {
+  function notify(text, kind = 'ok', ms = 2200) {
     setToast({ text, kind })
     clearTimeout(toastTimer.current)
-    toastTimer.current = setTimeout(() => setToast(null), 2200)
+    toastTimer.current = setTimeout(() => setToast(null), ms)
   }
+
+  // Meldungen vom Server (z. B. «YouTube-Kontingent aufgebraucht – läuft über Spotify»)
+  useEffect(() => {
+    if (jb.notice) notify(jb.notice.text, 'warn', 6000)
+  }, [jb.notice?.nonce])
 
   async function enqueue(track, next = false) {
     const result = await actions.enqueue(track, next)
@@ -150,7 +155,7 @@ function JukeboxApp({ info }) {
             enqueue={enqueue} enqueueMany={enqueueMany} />
         )}
         {view === 'favorites' && (
-          <FavoritesView lists={jb.favorites} openId={favOpenId} setOpenId={setFavOpenId}
+          <FavoritesView lists={jb.favorites} mixes={jb.mixes} current={jb.current} openId={favOpenId} setOpenId={setFavOpenId}
             enqueue={enqueue} enqueueMany={enqueueMany} notify={notify} />
         )}
         {view === 'radio' && <RadioView jb={jb} notify={notify} />}
@@ -310,7 +315,9 @@ function NowPlaying({ jb, enqueue, goSearch }) {
           ? <div id="yt-slot" className="video-slot" />
           : <Cover track={current} size={300} className={`now-cover ${playing ? 'is-playing' : ''}`} />}
         <div className="now-text">
-          <span className="eyebrow"><Equalizer playing={playing} /> {playing ? 'Jetzt läuft' : 'Pausiert'}</span>
+          <span className="eyebrow"><Equalizer playing={playing} /> {playing ? 'Jetzt läuft' : 'Pausiert'}
+            {current.filler === 'mix' && <span className="eyebrow-mix"> · aus {current.mix_name}</span>}
+            {current.source === 'youtube' && !current.ref && <span className="eyebrow-mix"> · YouTube-Video wird gesucht …</span>}</span>
           <h1>{current.title}</h1>
           <p>{current.artist}{current.album ? ` · ${current.album}` : ''}</p>
           <div className="now-meta">
@@ -691,8 +698,10 @@ function LibraryView({ enqueue, musicDir }) {
 // ---------- Warteschlange (rechts) ----------
 
 function QueuePanel({ jb }) {
-  const { queue, current, playing, radio } = jb
+  const { queue, current, playing, radio, mixes } = jb
   const station = radio.on && radio.stations.find(s => s.id === radio.station_id)
+  const fillerMix = mixes.lists.find(m => m.id === mixes.filler_id)
+  const filler = station?.name || fillerMix?.name
   return (
     <aside className="queue-panel panel">
       <h2><ListMusic size={22} /> Warteschlange <span className="count">{queue.length}</span></h2>
@@ -713,14 +722,14 @@ function QueuePanel({ jb }) {
 
       <h3>Als Nächstes</h3>
       {queue.length === 0
-        ? <p className="muted">{station
-          ? current?.source === 'radio'
-            ? 'Die Warteschlange ist leer – das Radio läuft, bis jemand einen Song wünscht.'
-            : `Die Warteschlange ist leer. Danach läuft ${station.name}.`
+        ? <p className="muted">{filler
+          ? current?.source === 'radio' || current?.filler
+            ? `Die Warteschlange ist leer – ${filler} läuft, bis jemand einen Song wünscht.`
+            : `Die Warteschlange ist leer. Danach läuft ${filler}.`
           : 'Die Warteschlange ist leer. Füge über die Suche Songs hinzu.'}</p>
         : <QueueList queue={queue} />}
-      {station && queue.length > 0 && (
-        <p className="queue-radio"><RadioIcon size={15} /> Danach: {station.name}</p>
+      {filler && queue.length > 0 && (
+        <p className="queue-radio">{station ? <RadioIcon size={15} /> : <Repeat size={15} />} Danach: {filler}</p>
       )}
     </aside>
   )

@@ -15,7 +15,7 @@ const STEPS = [
   { title: 'Willkommen', icon: Sparkles },
   { title: 'Spotify-App', icon: KeyRound },
   { title: 'Spotify-Anmeldung', icon: LogIn },
-  { title: 'YouTube', icon: MonitorPlay },
+  { title: 'YouTube & Last.fm', icon: MonitorPlay },
   { title: 'Lautsprecher', icon: Speaker },
   { title: 'Musik & Fertig', icon: FolderOpen },
 ]
@@ -421,8 +421,53 @@ function StepYouTube({ status, onDevice, go, refresh }) {
           {busy ? <LoaderCircle className="spin" size={18} /> : <Check size={18} />} Prüfen & speichern
         </button>
       </div>
+      <LastfmKey status={status} onDevice={onDevice} refresh={refresh} />
       <Nav back={() => go(2)} skip={configured ? null : () => go(4)} next={configured ? () => go(4) : null} />
     </>
+  )
+}
+
+// Optional: Last.fm für treffsicherere automatische Mixe (ähnliche Songs, Genres)
+function LastfmKey({ status, onDevice, refresh }) {
+  const [key, setKey] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+  const [ok, setOk] = useState(null)
+  async function save() {
+    setBusy(true); setError(null); setOk(null)
+    const result = await call('POST', '/api/setup/lastfm', { key })
+    setBusy(false)
+    if (result.error) { setError(result.error); return }
+    setOk('Last.fm hat den Schlüssel bestätigt.')
+    setKey('')
+    await refresh()
+  }
+  const configured = status.lastfm?.configured
+  return (
+    <div className="setup-optional">
+      <h2>Last.fm <span>optional</span></h2>
+      <p className="setup-lead">
+        Die automatischen Mixe funktionieren auch ohne. Mit einem kostenlosen Last.fm-Schlüssel
+        werden die Vorschläge und Genres aber treffsicherer.
+      </p>
+      <ol className="setup-howto">
+        <li><Link href="https://www.last.fm/api/account/create" onDevice={onDevice}>last.fm/api/account/create</Link> öffnen
+          und mit einem (kostenlosen) Last.fm-Konto anmelden.</li>
+        <li>Bei <b>Application name</b> z.&nbsp;B. «JUKEBUX» eintragen, die übrigen Felder leer lassen und absenden.</li>
+        <li>Den <b>API key</b> kopieren (nicht das «Shared secret») und hier einfügen.</li>
+      </ol>
+      {configured && !ok && <Message ok={`Bereits eingerichtet (Schlüssel ${status.lastfm.key}). Zum Ändern einfach neu eingeben.`} />}
+      <div className="setup-fields">
+        <Field label="Last.fm-API-Schlüssel" value={key} onChange={setKey} onDevice={onDevice} mono secret
+          placeholder="32 Zeichen" maxLength={40} onEnter={save} />
+      </div>
+      <Message error={error} ok={ok} />
+      <div className="setup-inline">
+        <button className="setup-btn" onClick={save} disabled={busy || !key}>
+          {busy ? <LoaderCircle className="spin" size={18} /> : <Check size={18} />} Prüfen & speichern
+        </button>
+      </div>
+    </div>
   )
 }
 
@@ -516,6 +561,7 @@ function StepFinish({ status, go, finish }) {
     ['Spotify', status.spotify.connected ? `Verbunden (${status.spotify.user || 'Konto'})`
       : status.spotify.configured ? 'App eingerichtet, noch nicht angemeldet' : 'Übersprungen', status.spotify.connected],
     ['YouTube', status.youtube.configured ? 'Eingerichtet' : 'Übersprungen', status.youtube.configured],
+    ['Last.fm (Mixe)', status.lastfm?.configured ? 'Eingerichtet' : 'Ohne – Mixe über Deezer', Boolean(status.lastfm?.configured)],
     ['Lautsprecher', status.bluetooth.mac ? (status.bluetooth.name || status.bluetooth.mac) : 'Übersprungen', Boolean(status.bluetooth.mac)],
     ['Lokale Musik', `${status.music.tracks} Titel`, status.music.tracks > 0],
   ]

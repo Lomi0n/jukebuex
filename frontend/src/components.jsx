@@ -49,7 +49,8 @@ export function SourceBadge({ source }) {
   return <span className={`badge badge-${source}`}>{SOURCES[source] || source}</span>
 }
 
-export function TrackRow({ track, index, onPlay, onAdd, onNext, onRemove, handle, style, className = '', noFavorite }) {
+export function TrackRow({ track, index, onPlay, onAdd, onNext, onRemove, handle, style, className = '', noFavorite,
+  tag, removeIcon, removeTitle = 'Entfernen' }) {
   const fav = useFavorites()
   const isFav = fav?.keys.has(trackKey(track))
   return (
@@ -64,6 +65,7 @@ export function TrackRow({ track, index, onPlay, onAdd, onNext, onRemove, handle
         <strong>{track.title}</strong>
         <span>{track.artist}</span>
       </div>
+      {tag && <em className="row-tag">{tag}</em>}
       <SourceBadge source={track.source} />
       <span className="row-time">{track.duration ? formatTime(track.duration) : ''}</span>
       {fav && !noFavorite && (
@@ -83,8 +85,8 @@ export function TrackRow({ track, index, onPlay, onAdd, onNext, onRemove, handle
         </button>
       )}
       {onRemove && (
-        <button className="icon-btn danger" onClick={onRemove} title="Entfernen">
-          <Trash2 size={18} />
+        <button className="icon-btn danger" onClick={onRemove} title={removeTitle}>
+          {removeIcon || <Trash2 size={18} />}
         </button>
       )}
     </div>

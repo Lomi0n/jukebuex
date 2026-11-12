@@ -117,3 +117,7 @@ button.setup-speaker:hover:not(:disabled) { background: var(--hover); }
   .setup-fields.two { grid-template-columns: 1fr; }
   .setup-card h1 { font-size: 30px; }
 }
+
+.setup-optional { margin-top: 30px; padding-top: 24px; border-top: 1px solid var(--line, #2a2d33); }
+.setup-optional h2 { display: flex; align-items: center; gap: 10px; font-size: 22px; margin: 0 0 8px; }
+.setup-optional h2 span { padding: 3px 9px; border-radius: 20px; background: #ffffff14; font-size: 12px; font-weight: 700; color: var(--muted, #9aa0a6); }

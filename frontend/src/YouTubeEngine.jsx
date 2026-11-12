@@ -93,7 +93,9 @@ export default function YouTubeEngine({ jb }) {
   useEffect(() => {
     const player = playerRef.current
     if (!ready || !player) return
-    if (active) {
+    if (active && !current.ref) {
+      player.stopVideo()   // Video wird noch gesucht (Song aus einem Mix) – gleich geht's los
+    } else if (active) {
       if (pausedRef.current) player.cueVideoById(current.ref)
       else {
         player.loadVideoById(current.ref)
@@ -102,12 +104,12 @@ export default function YouTubeEngine({ jb }) {
     } else {
       player.stopVideo()
     }
-  }, [playId, ready])
+  }, [playId, ready, current?.ref])
 
   // Pause / Weiter
   useEffect(() => {
     const player = playerRef.current
-    if (!ready || !player || !active) return
+    if (!ready || !player || !active || !currentRef.current?.ref) return
     if (paused) player.pauseVideo()
     else {
       player.playVideo()

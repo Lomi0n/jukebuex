@@ -26,6 +26,7 @@ import urllib.error
 import zipfile
 import urllib.parse
 import urllib.request
+import mixer
 
 BACKEND_DIR = Path(__file__).resolve().parent
 CONFIG_FILE = BACKEND_DIR / "config.env"
@@ -50,8 +51,9 @@ def load_config():
 
 def apply_config():
     """Einstellungen (neu) übernehmen – nach der Einrichtung ohne Neustart."""
-    global CONFIG, YOUTUBE_API_KEY, SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET
+    global CONFIG, YOUTUBE_API_KEY, SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, LASTFM_API_KEY
     CONFIG = load_config()
+    LASTFM_API_KEY = os.environ.get("LASTFM_API_KEY") or CONFIG.get("LASTFM_API_KEY")
     YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY") or CONFIG.get("YOUTUBE_API_KEY")
     SPOTIFY_CLIENT_ID = os.environ.get("SPOTIFY_CLIENT_ID") or CONFIG.get("SPOTIFY_CLIENT_ID")
     SPOTIFY_CLIENT_SECRET = os.environ.get("SPOTIFY_CLIENT_SECRET") or CONFIG.get("SPOTIFY_CLIENT_SECRET")
@@ -143,6 +145,30 @@ def save_data():
     tmp.replace(DATA_FILE)  # atomar: nie eine halb geschriebene Datei
 
 
+def load_json(path, default):
+    try:
+        return json.loads(path.read_text())
+    except (OSError, ValueError):
+        return default
+
+
+def save_json(path, data):
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False))
+    tmp.replace(path)
+
+
+# Automatische Mixe: eigene Dateien, damit data.json (wird oft gespeichert) klein bleibt
+PLAYS_FILE = Path(__file__).parent / "plays.json"        # Hörprofil
+MIXES_FILE = Path(__file__).parent / "mixes.json"        # fertige Mixe + Lückenfüller-Wahl
+MIX_CACHE_FILE = Path(__file__).parent / "mixcache.json" # Künstlerinfos + Spotify-Treffer
+plays = load_json(PLAYS_FILE, {})
+mixes = {"lists": [], "day": None, "updated": None, "filler_id": None, "filler_played": [], "blocked": [],
+         **load_json(MIXES_FILE, {})}
+mix_status = {"running": False, "progress": None, "error": None}
+PLAYS_LIMIT = 3000
+
+
 class Track(BaseModel):
     title: str
     artist: str = "Unbekannter Interpret"
@@ -209,6 +235,7 @@ def drop_connection(connection):
 async def broadcast(message=None, exclude=None):
     if message is None:
         save_data()  # jede Änderung am Wiedergabe-Stand sofort speichern
+        schedule_pending()
         message = state()
     targets = [c for c in list(connections) if c is not exclude]
     if not targets:
@@ -224,9 +251,32 @@ def is_radio(track):
     return bool(track) and track.get("source") == "radio"
 
 
-def finish_current():
+def record_play(track, skipped):
+    """Hörprofil: ab 30 Sekunden (bzw. halber Länge) zählt ein Song als gehört,
+    wer früher «Weiter» drückt, überspringt ihn."""
+    if not track or is_radio(track) or not track.get("title"):
+        return
+    position = playback["position"]
+    duration = track.get("duration") or playback["duration"] or 0
+    heard = position >= 30 or (duration and position >= duration * 0.5)
+    if not heard and not skipped:
+        return
+    key = mixer.song_key(track.get("artist"), track.get("title"))
+    entry = plays.setdefault(key, {"count": 0, "skips": 0})
+    entry["track"] = {k: track.get(k) for k in ("title", "artist", "album", "source", "url", "ref", "image", "duration")}
+    entry["last"] = time.time()
+    entry["count" if heard else "skips"] += 1
+    if len(plays) > PLAYS_LIMIT:
+        now = time.time()
+        for old in sorted(plays, key=lambda k: mixer.score_entry(plays[k], now))[:len(plays) - PLAYS_LIMIT]:
+            del plays[old]
+    save_json(PLAYS_FILE, plays)
+
+
+def finish_current(skipped=False):
     """Aktuellen Titel in den Verlauf verschieben (Radiosender nicht)."""
     global current
+    record_play(current, skipped)
     if current and not is_radio(current):
         history.insert(0, current)
         del history[HISTORY_LIMIT:]
@@ -560,18 +610,22 @@ async def play_direct(track: Track):
     return state()
 
 
-@app.post("/api/next")
-async def next_track():
+async def advance(skipped):
     if is_radio(current) and not queue:
         switch_station(+1)   # im Radio: «Weiter» = nächster Sender
     else:
-        finish_current()
+        finish_current(skipped)
         if queue:
             start(queue.pop(0))
         else:
-            radio_fill()     # Warteschlange leer: Radio übernimmt (falls eingeschaltet)
+            radio_fill()     # Warteschlange leer: Radio oder Mix übernimmt (falls eingeschaltet)
     await broadcast()
     return state()
+
+
+@app.post("/api/next")
+async def next_track():
+    return await advance(skipped=True)
 
 
 @app.post("/api/ended/{play_id}")
@@ -579,7 +633,7 @@ async def track_ended(play_id: str):
     # Nur weiterschalten, wenn wirklich der aktuelle Titel zu Ende ist.
     # Ein Radiostream «endet» nicht – der Player verbindet sich selbst neu.
     if current and current.get("play_id") == play_id and not is_radio(current):
-        return await next_track()
+        return await advance(skipped=False)
     return state()
 
 
@@ -606,8 +660,8 @@ async def toggle():
         playback["paused"] = not playback["paused"]
         await broadcast()
         return state()
-    if queue or radio["on"]:
-        return await next_track()
+    if queue or radio["on"] or mixes["filler_id"]:
+        return await advance(skipped=False)
     return state()
 
 
@@ -1524,6 +1578,7 @@ def setup_status(request: Request):
                     "connected": bool(token), "user": (token or {}).get("user"),
                     "redirect_uri": SPOTIFY_REDIRECT_URI},
         "youtube": {"configured": bool(YOUTUBE_API_KEY), "key": masked(YOUTUBE_API_KEY)},
+        "lastfm": {"configured": bool(LASTFM_API_KEY), "key": masked(LASTFM_API_KEY)},
         "bluetooth": {**bluetooth_message(), "task": bt_task_view()},
         "music": {"dir": str(MUSIC_DIR), "tracks": len(library)},
         "version": app_version(),
@@ -1653,6 +1708,30 @@ def setup_youtube(body: SetupYouTube, request: Request):
     save_config({"YOUTUBE_API_KEY": key})
     _youtube_cache.clear()
     return {"status": "ok", "warning": warning}
+
+
+class SetupLastfm(BaseModel):
+    key: str = Field(max_length=80)
+
+
+@app.post("/api/setup/lastfm")
+def setup_lastfm(body: SetupLastfm, request: Request):
+    """Optional: Last.fm-Schlüssel für treffsicherere Mix-Vorschläge. Leer = entfernen."""
+    require_setup(request)
+    key = body.key.strip()
+    if not key:
+        save_config({"LASTFM_API_KEY": None})
+        return {"status": "removed"}
+    if not re.fullmatch(r"[0-9a-fA-F]{32}", key):
+        raise HTTPException(400, "Das sieht nicht nach einem Last.fm-API-Schlüssel aus (32 Zeichen, 0–9 und a–f).")
+    try:
+        valid = mixer.check_lastfm_key(key)
+    except Exception:
+        raise HTTPException(502, "Last.fm ist nicht erreichbar. Besteht eine Internetverbindung?")
+    if not valid:
+        raise HTTPException(400, "Last.fm hat den Schlüssel abgelehnt. Bitte den «API key» (nicht das «Shared secret») kopieren.")
+    save_config({"LASTFM_API_KEY": key})
+    return {"status": "ok"}
 
 
 class SetupSpeaker(BaseModel):
@@ -1827,11 +1906,17 @@ def radio_track(station):
 
 
 def radio_fill():
-    """Läuft nichts mehr und ist das Radio eingeschaltet: gewählten Sender starten."""
-    if radio["on"] and not current and not queue:
+    """Läuft nichts mehr: Lückenfüller starten – gewählter Sender oder nächster Song aus dem Mix."""
+    if current or queue:
+        return
+    if radio["on"]:
         station = find_station(radio["station_id"])
         if station:
             start(radio_track(station))
+    elif mixes["filler_id"]:
+        track = next_mix_track()
+        if track:
+            start(track)
 
 
 def interrupt_radio():
@@ -2006,10 +2091,13 @@ async def play_station(station_id: str):
     if not station:
         raise HTTPException(404, "Sender nicht gefunden")
     radio.update(station_id=station_id, on=True)
+    if mixes["filler_id"]:            # Sender ersetzt einen Mix als Lückenfüller
+        mixes["filler_id"] = None
+        await broadcast_mixes()
     if station.get("uuid"):
         asyncio.get_running_loop().run_in_executor(None, count_click, station["uuid"])
-    # Läuft gerade ein Wunsch, kommt das Radio erst danach
-    waiting = bool(current and not is_radio(current))
+    # Läuft gerade ein Wunsch, kommt das Radio erst danach (ein Mix-Lückenfüller wird abgelöst)
+    waiting = bool(current and not is_radio(current) and not current.get("filler"))
     if not waiting:
         start(radio_track(station))
         await broadcast()
@@ -2020,6 +2108,9 @@ async def play_station(station_id: str):
 @app.post("/api/radio/off")
 async def radio_off():
     radio["on"] = False
+    if mixes["filler_id"]:
+        mixes["filler_id"] = None
+        await broadcast_mixes()
     if is_radio(current):
         finish_current()
         await broadcast()
@@ -2081,14 +2172,413 @@ def ensure_radio_meta_task():
         _radio_meta_task = asyncio.create_task(radio_meta_loop())
 
 
+# ---------- Automatische Mixe ----------
+# Hörprofil (plays.json) -> ähnliche Musik über Deezer/Last.fm (mixer.py) -> auf Spotify suchen.
+# Jede Nacht ab 4 Uhr neu gemischt, zusätzlich per Knopf «Neu mischen».
+
+mix_cache = load_json(MIX_CACHE_FILE, {"artists": {}, "matches": {}, "youtube": {}})
+MATCH_MISS_DAYS = 14        # nicht gefundene Songs so lange nicht erneut suchen
+YOUTUBE_PREFETCH = 40       # nachts vorab höchstens so viele YouTube-Suchen (je 100 Einheiten).
+                            # Um 4 Uhr läuft noch der Kontingent-Tag von gestern (Neustart um 9 Uhr).
+_mix_task = None
+_resolving = set()          # YouTube-Videos, die gerade gesucht werden (Titel-IDs)
+
+
+def mix_source():
+    """Über welche Quelle Mix-Songs laufen: YouTube (Standard) oder Spotify."""
+    source = mixes.get("source") or ("youtube" if YOUTUBE_API_KEY else "spotify")
+    if source == "youtube" and not YOUTUBE_API_KEY:
+        return "spotify"
+    if source == "spotify" and not spotify_configured() and YOUTUBE_API_KEY:
+        return "youtube"
+    return source
+
+
+def mixes_message():
+    return {"type": "mixes", "lists": mixes["lists"], "updated": mixes["updated"],
+            "filler_id": mixes["filler_id"], "lastfm": bool(LASTFM_API_KEY), "source": mix_source(),
+            "youtube": bool(YOUTUBE_API_KEY), "spotify": spotify_configured(),
+            "profile": len(plays), **mix_status}
+
+
+async def broadcast_mixes():
+    save_json(MIXES_FILE, mixes)
+    await broadcast(mixes_message())
+
+
+async def notice(text):
+    """Kurze Meldung auf allen Bildschirmen (erscheint als Hinweis unten)."""
+    await broadcast({"type": "notice", "text": text, "nonce": str(uuid4())})
+
+
+def find_mix(mix_id):
+    found = next((m for m in mixes["lists"] if m["id"] == mix_id), None)
+    if not found:
+        raise HTTPException(404, "Mix nicht gefunden")
+    return found
+
+
+def is_pending(track):
+    """YouTube-Titel, dessen Video erst noch gesucht werden muss (kommt aus einem Mix)."""
+    return bool(track) and track.get("source") == "youtube" and not track.get("ref")
+
+
+def mix_playable(track, source=None):
+    """Mix-Titel -> Titel für die Warteschlange: lokal vor allem, dann die gewählte Quelle, dann die andere.
+    Ist das YouTube-Video noch nicht gesucht, wird es erst beim Abspielen gesucht."""
+    source = source or mix_source()
+    if track.get("local"):
+        return dict(track["local"])
+    for option in (source, "spotify" if source == "youtube" else "youtube"):
+        found = track.get(option)
+        if found:
+            return {**found, "image": found.get("image") or track.get("image")}
+        if option == "youtube" and found is None and YOUTUBE_API_KEY:
+            return {"title": track["title"], "artist": track["artist"], "album": track.get("album"),
+                    "image": track.get("image"), "duration": track.get("duration"), "source": "youtube", "ref": None}
+    return None
+
+
+def next_mix_track():
+    """Lückenfüller: zufälliger Song aus dem Mix, der in dieser Runde noch nicht lief."""
+    mix = next((m for m in mixes["lists"] if m["id"] == mixes["filler_id"]), None)
+    if not mix or not mix["tracks"]:
+        mixes["filler_id"] = None
+        return None
+    played = set(mixes["filler_played"])
+    recent = {mixer.song_key(t.get("artist"), t.get("title")) for t in history[:5]}
+    playable = [t for t in mix["tracks"] if mix_playable(t)]
+    pool = [t for t in playable if t["id"] not in played and
+            mixer.song_key(t.get("artist"), t.get("title")) not in recent]
+    if not pool:
+        mixes["filler_played"] = []
+        pool = [t for t in playable if mixer.song_key(t.get("artist"), t.get("title")) not in recent] or playable
+    if not pool:
+        return None
+    track = pool[int.from_bytes(os.urandom(2), "big") % len(pool)]
+    mixes["filler_played"].append(track["id"])
+    save_json(MIXES_FILE, mixes)
+    return {**mix_playable(track), "id": str(uuid4()), "filler": "mix", "mix_name": mix["name"]}
+
+
+def library_index():
+    index = {}
+    for track in scan_library():
+        if track.get("artist") and track.get("title"):
+            index.setdefault(mixer.song_key(track["artist"], track["title"]), track)
+    return index
+
+
+def find_spotify(artist, title):
+    """Song auf Spotify suchen (gemerkt). None = nicht gefunden oder nicht erreichbar."""
+    key = mixer.song_key(artist, title)
+    matches = mix_cache.setdefault("matches", {})
+    cached = matches.get(key)
+    if cached and (cached.get("track") or time.time() - cached.get("ts", 0) < MATCH_MISS_DAYS * 86400):
+        return cached.get("track")
+    if not spotify_configured() or not load_spotify_token():
+        return None
+    clean = mixer.clean_title(title)
+    try:
+        data = spotify_api("/search", {"q": f'track:"{clean}" artist:"{mixer.main_artist(artist)}"',
+                                       "type": "track", "limit": 5})
+    except Exception:
+        return None   # Netzfehler: nicht als «nicht gefunden» merken
+    track = None
+    for item in data.get("tracks", {}).get("items", []):
+        candidate = spotify_track(item)
+        if candidate and mixer.same_artist(candidate["artist"], artist) and mixer.same_title(candidate["title"], clean):
+            track = candidate
+            break
+    matches[key] = {"ts": time.time(), "track": track}
+    return track
+
+
+def cached_youtube(artist, title):
+    """Titel = gefunden, False = gesucht und nicht gefunden, None = noch nie gesucht."""
+    entry = mix_cache.setdefault("youtube", {}).get(mixer.song_key(artist, title))
+    if not entry:
+        return None
+    if entry.get("track"):
+        return entry["track"]
+    return False if time.time() - entry.get("ts", 0) < MATCH_MISS_DAYS * 86400 else None
+
+
+def find_youtube(artist, title):
+    """YouTube-Video zu einem Song suchen (kostet 100 Einheiten, wird für immer gemerkt).
+    Liefert Titel, False (nicht gefunden), "quota" (Kontingent leer) oder None (Fehler)."""
+    cached = cached_youtube(artist, title)
+    if cached is not None:
+        return cached
+    results = youtube_search(f"{mixer.main_artist(artist)} {mixer.clean_title(title)}")
+    if not isinstance(results, list):
+        return "quota" if "Kontingent" in str((results or {}).get("error", "")) else None
+    name = mixer.norm(mixer.main_artist(artist))
+    match = next((t for t in results if mixer.same_title(t["title"], title) and
+                  (mixer.same_artist(t["artist"], artist) or name in mixer.norm(t["title"] + " " + t["artist"]))), None) \
+        or next((t for t in results[:3] if mixer.same_title(t["title"], title)), None)
+    mix_cache.setdefault("youtube", {})[mixer.song_key(artist, title)] = {"ts": time.time(), "track": match}
+    save_json(MIX_CACHE_FILE, mix_cache)
+    return match or False
+
+
+def remember_youtube(artist, title, result):
+    """Ergebnis einer YouTube-Suche in alle Mixe übernehmen."""
+    if result is not False and not isinstance(result, dict):
+        return   # Kontingent leer oder Fehler: nichts merken, später nochmals versuchen
+    key = mixer.song_key(artist, title)
+    for mix in mixes["lists"]:
+        for track in mix["tracks"]:
+            if mixer.song_key(track.get("artist"), track.get("title")) == key:
+                track["youtube"] = result
+    save_json(MIXES_FILE, mixes)
+
+
+def make_resolver():
+    """Wo ist ein vorgeschlagener Song abspielbar? Lokal und Spotify werden gleich gesucht (gratis),
+    YouTube nur aus dem Zwischenspeicher – gesucht wird dort sparsam (nachts bzw. beim Abspielen)."""
+    local = library_index()
+
+    def resolve(candidate):
+        artist, title = candidate["artist"], candidate["title"]
+        key = mixer.song_key(artist, title)
+        entry = {"title": title, "artist": artist, "album": candidate.get("album"),
+                 "image": candidate.get("image"), "duration": candidate.get("duration")}
+        source = candidate.get("source")
+        if source in ("spotify", "youtube", "local") and (candidate.get("ref") or candidate.get("url")):
+            # Bekannter Song: so wie er schon lief
+            entry[source] = {k: candidate.get(k) for k in ("title", "artist", "album", "source", "url", "ref", "image", "duration")}
+        if key in local:
+            entry["local"] = local[key]
+        if not entry.get("spotify"):
+            entry["spotify"] = find_spotify(artist, title)
+        if not entry.get("youtube"):
+            entry["youtube"] = cached_youtube(artist, title)
+        entry["image"] = entry["image"] or next((entry[s]["image"] for s in ("spotify", "youtube", "local")
+                                                  if entry.get(s) and entry[s].get("image")), None)
+        if entry.get("local") or entry.get("spotify") or entry.get("youtube") or \
+                (YOUTUBE_API_KEY and entry.get("youtube") is None):
+            return entry
+        return None
+
+    return resolve
+
+
+def run_mix_generation(progress):
+    favorite_tracks = [t for f in favorites for t in f["tracks"]]
+    resolve = make_resolver()
+    lists = mixer.generate(plays, favorite_tracks, mixes["blocked"], mix_cache.setdefault("artists", {}),
+                           resolve, lastfm_key=LASTFM_API_KEY, progress=progress)
+    # Bekannte Lieblingssongs ebenfalls mit allen Quellen versehen
+    for mix in lists:
+        mix["tracks"] = [t if t.get("new") else resolve(t) or t for t in mix["tracks"]]
+    save_json(MIX_CACHE_FILE, mix_cache)
+    prefetch_youtube(lists, progress)
+    return lists
+
+
+def prefetch_youtube(lists, progress):
+    """Nachts schon die YouTube-Videos suchen, damit es beim Abspielen keine Pause gibt."""
+    if not YOUTUBE_API_KEY or mix_source() != "youtube":
+        return
+    filler_name = next((m["name"] for m in mixes["lists"] if m["id"] == mixes["filler_id"]), None)
+    ordered = sorted(lists, key=lambda m: m["name"] != filler_name)
+    todo = [t for m in ordered for t in m["tracks"] if not t.get("local") and t.get("youtube") is None]
+    for i, track in enumerate(todo[:YOUTUBE_PREFETCH], 1):
+        progress(f"YouTube-Videos suchen ({i}/{min(len(todo), YOUTUBE_PREFETCH)})")
+        result = find_youtube(track["artist"], track["title"])
+        if result == "quota" or result is None:
+            break   # Kontingent leer oder YouTube nicht erreichbar: Rest beim Abspielen
+        for t in (t for m in lists for t in m["tracks"]):
+            if mixer.song_key(t["artist"], t["title"]) == mixer.song_key(track["artist"], track["title"]):
+                t["youtube"] = result
+
+
+def schedule_pending():
+    """Laufender bzw. nächster Titel braucht noch sein YouTube-Video: im Hintergrund suchen."""
+    for item in ([current] if current else []) + queue[:1]:
+        if is_pending(item) and item["id"] not in _resolving:
+            _resolving.add(item["id"])
+            asyncio.get_running_loop().create_task(resolve_pending(item))
+
+
+async def resolve_pending(item):
+    global current
+    try:
+        result = await asyncio.to_thread(find_youtube, item["artist"], item["title"])
+        remember_youtube(item["artist"], item["title"], result)
+        if isinstance(result, dict):
+            item.update(ref=result["ref"], duration=item.get("duration") or result.get("duration"))
+        else:
+            # Kein Video (oder Kontingent leer): über Spotify abspielen, sonst überspringen
+            fallback = await asyncio.to_thread(find_spotify, item["artist"], item["title"])
+            reason = "Das YouTube-Tageskontingent ist aufgebraucht" if result == "quota" else "Kein passendes YouTube-Video gefunden"
+            if fallback:
+                replacement = {**fallback, "id": item["id"], "image": item.get("image") or fallback.get("image"),
+                               **{k: item[k] for k in ("filler", "mix_name") if k in item}}
+                await notice(f"{reason} – «{item['title']}» läuft über Spotify.")
+            else:
+                replacement = None
+                await notice(f"{reason} – «{item['title']}» wird übersprungen.")
+            if current is item:
+                if replacement:
+                    current = {**replacement, "play_id": str(uuid4())}
+                else:
+                    current = None
+                    playback.update(paused=False, position=0.0, duration=0.0)
+                    if queue:
+                        start(queue.pop(0))
+                    else:
+                        radio_fill()
+            elif item in queue:
+                index = queue.index(item)
+                if replacement:
+                    queue[index] = replacement
+                else:
+                    queue.pop(index)
+        await broadcast()
+        await broadcast(mixes_message())
+    finally:
+        _resolving.discard(item["id"])
+
+
+async def generate_mixes():
+    loop = asyncio.get_running_loop()
+    mix_status.update(running=True, progress="Hörprofil auswerten …", error=None)
+    await broadcast_mixes()
+
+    def progress(text):
+        mix_status["progress"] = text
+        asyncio.run_coroutine_threadsafe(broadcast(mixes_message()), loop)
+
+    try:
+        lists = await asyncio.to_thread(run_mix_generation, progress)
+    except ValueError as error:
+        mix_status["error"] = str(error)
+    except Exception as error:
+        print("Mixe konnten nicht erstellt werden:", repr(error), flush=True)
+        mix_status["error"] = "Das Mischen hat nicht geklappt. Besteht eine Internetverbindung?"
+    else:
+        # Lückenfüller beim gleichnamigen neuen Mix weiterlaufen lassen
+        old_names = {m["id"]: m["name"] for m in mixes["lists"]}
+        filler_name = old_names.get(mixes["filler_id"])
+        for mix in lists:
+            mix["id"] = str(uuid4())
+            for track in mix["tracks"]:
+                track["id"] = str(uuid4())
+        mixes["lists"] = lists
+        mixes["filler_id"] = next((m["id"] for m in lists if m["name"] == filler_name), None) if filler_name else None
+        if filler_name and not mixes["filler_id"] and lists:
+            mixes["filler_id"] = lists[0]["id"]
+        mixes["filler_played"] = []
+        mixes["updated"] = time.time()
+    finally:
+        mixes["day"] = time.strftime("%Y-%m-%d")
+        mix_status.update(running=False, progress=None)
+        await broadcast_mixes()
+
+
+class MixSource(BaseModel):
+    source: str = Field(pattern="^(youtube|spotify)$")
+
+
+@app.post("/api/mixes/source")
+async def set_mix_source(body: MixSource):
+    if body.source == "youtube" and not YOUTUBE_API_KEY:
+        raise HTTPException(400, "YouTube ist nicht eingerichtet.")
+    if body.source == "spotify" and not spotify_configured():
+        raise HTTPException(400, "Spotify ist nicht eingerichtet.")
+    mixes["source"] = body.source
+    await broadcast_mixes()
+    return {"status": "ok", "source": body.source}
+
+
+def start_mix_generation():
+    global _mix_task
+    if _mix_task and not _mix_task.done():
+        return False
+    _mix_task = asyncio.create_task(generate_mixes())
+    return True
+
+
+async def mix_schedule_loop():
+    await asyncio.sleep(60)
+    while True:
+        now = time.localtime()
+        # Jede Nacht ab 4 Uhr – und einmalig, sobald genug gehört wurde
+        first_time = not mixes["lists"] and not mixes["day"] and len(plays) >= 8
+        if mixer.nightly_due(now, mixes["day"]) or first_time:
+            start_mix_generation()
+        await asyncio.sleep(300)
+
+
+@app.get("/api/mixes")
+def get_mixes():
+    return mixes_message()
+
+
+@app.post("/api/mixes/refresh")
+async def refresh_mixes():
+    if not start_mix_generation():
+        raise HTTPException(409, "Die Mixe werden gerade schon neu gemischt.")
+    return {"status": "started"}
+
+
+@app.post("/api/mixes/filler/off")
+async def mix_filler_off():
+    mixes["filler_id"] = None
+    await broadcast_mixes()
+    return {"status": "off"}
+
+
+@app.post("/api/mixes/{mix_id}/filler")
+async def mix_filler_on(mix_id: str):
+    mix = find_mix(mix_id)
+    mixes.update(filler_id=mix_id, filler_played=[])
+    radio["on"] = False              # Mix ersetzt das Radio als Lückenfüller
+    waiting = bool(current and not is_radio(current) and not current.get("filler"))
+    if current and not waiting:
+        finish_current()     # Radio oder Song aus einem anderen Mix ablösen
+    radio_fill()
+    await broadcast()
+    await broadcast_radio()
+    await broadcast_mixes()
+    return {"status": "waiting" if waiting else "playing", "name": mix["name"]}
+
+
+@app.post("/api/mixes/{mix_id}/block/{track_id}")
+async def block_mix_track(mix_id: str, track_id: str):
+    """«Nicht mehr vorschlagen»: aus dem Mix nehmen und künftig auslassen."""
+    mix = find_mix(mix_id)
+    track = next((t for t in mix["tracks"] if t["id"] == track_id), None)
+    if not track:
+        raise HTTPException(404, "Titel nicht im Mix")
+    mix["tracks"].remove(track)
+    key = mixer.song_key(track.get("artist"), track.get("title"))
+    if key not in mixes["blocked"]:
+        mixes["blocked"] = (mixes["blocked"] + [key])[-1000:]
+    await broadcast_mixes()
+    return {"status": "blocked"}
+
+
+def ensure_background_tasks():
+    global _mix_schedule_task
+    ensure_radio_meta_task()
+    if _mix_schedule_task is None or _mix_schedule_task.done():
+        _mix_schedule_task = asyncio.create_task(mix_schedule_loop())
+
+
+_mix_schedule_task = None
+
+
 # ---------- Live-Verbindung ----------
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
-    ensure_radio_meta_task()
+    ensure_background_tasks()
     for message in (state(), {"type": "favorites", "lists": favorites}, sounds_message(),
-                    bluetooth_message(), radio_message()):
+                    bluetooth_message(), radio_message(), mixes_message()):
         if not await send_safe(websocket, message):
             await close_quietly(websocket)
             return

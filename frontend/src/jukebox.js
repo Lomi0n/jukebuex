@@ -122,6 +122,15 @@ export const radioActions = {
   move: (station, index) => send('POST', `/api/radio/stations/${station.id}/move`, { index }),
 }
 
+// Automatische Mixe
+export const mixActions = {
+  refresh: () => send('POST', '/api/mixes/refresh'),
+  filler: mix => send('POST', `/api/mixes/${mix.id}/filler`),
+  fillerOff: () => send('POST', '/api/mixes/filler/off'),
+  source: source => send('POST', '/api/mixes/source', { source }),
+  block: (mix, track) => send('POST', `/api/mixes/${mix.id}/block/${track.id}`),
+}
+
 export const favoriteActions = {
   create: name => request('POST', '/api/favorites', { name }),
   rename: (list, name) => request('PATCH', `/api/favorites/${list.id}`, { name }),
@@ -148,6 +157,8 @@ export function useJukebox(isPlayer) {
   const soundHandlers = useRef(new Set())
   const [bluetooth, setBluetooth] = useState(null)
   const [radio, setRadio] = useState({ stations: [], station_id: null, on: false })
+  const [mixes, setMixes] = useState({ lists: [], filler_id: null, running: false, source: 'youtube' })
+  const [notice, setNotice] = useState(null)   // Meldung vom Server, z. B. YouTube-Kontingent leer
   const wsRef = useRef(null)
   const seekHandlers = useRef(new Set())
 
@@ -167,6 +178,10 @@ export function useJukebox(isPlayer) {
     } else if (msg.type === 'sounds') {
       setSounds(msg.sounds || [])
       setSoundVolume(msg.volume ?? 80)
+    } else if (msg.type === 'notice') {
+      setNotice(msg)
+    } else if (msg.type === 'mixes') {
+      setMixes(msg)
     } else if (msg.type === 'radio') {
       setRadio({ stations: msg.stations || [], station_id: msg.station_id, on: Boolean(msg.on) })
     } else if (msg.type === 'bluetooth') {
@@ -264,7 +279,7 @@ export function useJukebox(isPlayer) {
 
   return {
     queue, current, history, paused, volume, position, duration, connected, favorites,
-    sounds, soundVolume, onSoundEvent, changeSoundVolume, bluetooth, radio,
+    sounds, soundVolume, onSoundEvent, changeSoundVolume, bluetooth, radio, mixes, notice,
     playing: Boolean(current) && !paused,
     setPosition, setDuration, sendPosition, onSeek, changeVolume, seekTo,
   }
