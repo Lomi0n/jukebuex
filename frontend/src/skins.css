@@ -179,7 +179,7 @@
   background-attachment: local; }
 [data-skin^="kritzel"] .panel, [data-skin^="kritzel"] .main { border-radius: var(--wobble-soft); border: 2px solid var(--pencil); }
 [data-skin^="kritzel"] .logo strong { font: 700 30px var(--brand); letter-spacing: 1px; transform: rotate(-2deg); }
-[data-skin^="kritzel"] h1 { font-weight: 700; text-decoration: underline wavy #ff8a3d; text-decoration-thickness: 3px; text-underline-offset: 8px; }
+[data-skin^="kritzel"] h1 { font-weight: 700; }
 [data-skin^="kritzel"] h1, [data-skin^="kritzel"] h2, [data-skin^="kritzel"] h3, [data-skin^="kritzel"] .sidebar nav button,
 [data-skin^="kritzel"] .logo strong { letter-spacing: -.5px; }
 [data-skin^="kritzel"] h2 { font-weight: 700; }
@@ -215,12 +215,11 @@
 [data-skin^="kritzel"] .eq i:nth-child(4) { background: #9b59d0; }
 [data-skin^="kritzel"] .splash { background:
     repeating-linear-gradient(180deg, transparent 0 39px, var(--k-lines) 39px 40px), var(--saver-bg); }
-[data-skin^="kritzel"] .splash h1, [data-skin^="kritzel"] .saver-idle h1 { font: 700 104px var(--brand); letter-spacing: 4px; text-decoration: none;
+[data-skin^="kritzel"] .splash h1, [data-skin^="kritzel"] .saver-idle h1 { font: 700 104px var(--brand); letter-spacing: 4px;
   color: var(--pencil); transform: rotate(-3deg); text-shadow: 4px 4px 0 #ffd23f, 8px 8px 0 color-mix(in srgb, var(--accent) 33%, transparent); }
 [data-skin^="kritzel"] .splash p { font-family: var(--head); font-size: 24px; color: #ff8a3d; }
 [data-skin^="kritzel"] .saver-shade { background: radial-gradient(circle at 30% 50%, transparent 0, color-mix(in srgb, var(--saver-bg) 87%, transparent) 75%); }
 [data-skin^="kritzel"] .saver-bg { opacity: .3; }
-[data-skin^="kritzel"] .saver-text h1 { text-decoration: none; }
 [data-skin^="kritzel"] .keyboard .kb-key { border: 2px solid var(--pencil); border-radius: var(--wobble-soft); }
 
 /* KRITZELBUCH NACHT – dasselbe Heft, dunkel: helle Kreide- und Wachsmalstift-Striche */
