@@ -4,7 +4,7 @@ import {
   Disc3, Search, HardDrive, ListMusic, Play, Pause, SkipBack, SkipForward,
   Volume2, VolumeX, Laptop, MonitorSpeaker, History as HistoryIcon, X,
   LibraryBig, ListStart, Shuffle, ArrowLeft, Heart, Star, Link2, ListVideo, CircleDot,
-  Bluetooth, BluetoothConnected, BluetoothOff, Server, Radio as RadioIcon, Power, Repeat
+  Bluetooth, BluetoothConnected, BluetoothOff, Server, Radio as RadioIcon, Power, Repeat, Menu, ChevronRight
 } from 'lucide-react'
 import { useJukebox, actions, radioActions, getJson, getResult, API, branding, applySkin } from './jukebox'
 import AudioEngine from './AudioEngine'
@@ -29,6 +29,20 @@ import './App.css'
 // Einrichtung vom PC: http://<IP-des-Surface>:8000/setup
 const IS_REMOTE = window.location.pathname.startsWith('/remote')
 const IS_SETUP = window.location.pathname.startsWith('/setup')
+
+// Fernbedienung auf dem Handy: eigene, einspaltige Ansicht mit Reitern unten
+const PHONE_QUERY = '(max-width: 700px)'
+function useIsPhone() {
+  const [phone, setPhone] = useState(() => IS_REMOTE && window.matchMedia(PHONE_QUERY).matches)
+  useEffect(() => {
+    if (!IS_REMOTE) return
+    const media = window.matchMedia(PHONE_QUERY)
+    const update = () => setPhone(media.matches)
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [])
+  return phone
+}
 
 export default function App() {
   const [info, setInfo] = useState(null)
@@ -73,6 +87,7 @@ function JukeboxApp({ info }) {
   const [admin, setAdmin] = useState(false)           // verstecktes Wartungsmenü
   const [bgDialog, setBgDialog] = useState(false)   // versteckter Dialog «Eigener Hintergrund»
   const coverColor = useCoverColor(jb.current)        // Grundfarbe aus dem aktuellen Cover
+  const phone = useIsPhone()
 
   // Für die Sterne: welche Titel stecken in irgendeiner Favoritenliste?
   const favorites = useMemo(() => ({
@@ -126,6 +141,7 @@ function JukeboxApp({ info }) {
     if (key === 'spotify') setCollection(null)
     if (key === 'favorites') setFavOpenId(null)
     setView(key)
+    if (phone) document.querySelector('.main')?.scrollTo(0, 0)
   }
 
   // Album oder YouTube-Playlist aus der Suche öffnen; "Zurück" führt wieder zur Suche
@@ -136,7 +152,7 @@ function JukeboxApp({ info }) {
 
   return (
     <FavoritesContext.Provider value={favorites}>
-    <div className={`shell ${IS_REMOTE ? 'is-remote' : 'is-surface'} ${jb.current?.source === 'youtube' ? 'yt-active' : ''}`}
+    <div className={`shell ${IS_REMOTE ? 'is-remote' : 'is-surface'} ${phone ? 'is-phone' : ''} ${jb.current?.source === 'youtube' ? 'yt-active' : ''}`}
       style={coverColor ? { '--cover': coverColor } : undefined}>
       <div className="user-bg" aria-hidden="true" />
       {!IS_REMOTE && (
@@ -148,11 +164,19 @@ function JukeboxApp({ info }) {
         </>
       )}
 
-      <Sidebar view={view} navigate={navigate} connected={jb.connected} spotify={spotify} spotifyError={spotifyError}
-        onAdmin={() => setAdmin(true)} bluetooth={jb.bluetooth} info={info} onSecret={() => setBgDialog(true)} />
+      {phone
+        ? <PhoneHeader info={info} connected={jb.connected} />
+        : <Sidebar view={view} navigate={navigate} connected={jb.connected} spotify={spotify} spotifyError={spotifyError}
+            onAdmin={() => setAdmin(true)} bluetooth={jb.bluetooth} info={info} onSecret={() => setBgDialog(true)} />}
 
       <main className="main">
-        {view === 'now' && <NowPlaying jb={jb} enqueue={enqueue} goSearch={() => setView('search')} />}
+        {view === 'now' && <NowPlaying jb={jb} enqueue={enqueue} goSearch={() => setView('search')}
+          controls={phone && <PlayerBar jb={jb} />} />}
+        {phone && view === 'queue' && <QueuePanel jb={jb} />}
+        {phone && view === 'more' && (
+          <MoreView navigate={navigate} spotify={spotify} connected={jb.connected} bluetooth={jb.bluetooth}
+            onSecret={() => setBgDialog(true)} />
+        )}
         {/* Suche bleibt im Hintergrund erhalten, damit Suchbegriff und Treffer nicht verloren gehen */}
         <SearchView active={view === 'search'} enqueue={enqueue} openCollection={openFromSearch} />
         {view === 'collection' && searchCollection && (
@@ -172,8 +196,17 @@ function JukeboxApp({ info }) {
         {view === 'library' && <LibraryView enqueue={enqueue} musicDir={info.music_dir} />}
       </main>
 
-      <QueuePanel jb={jb} />
-      <PlayerBar jb={jb} />
+      {phone ? (
+        <>
+          {view !== 'now' && <MiniPlayer jb={jb} onOpen={() => navigate('now')} />}
+          <PhoneTabs view={view} navigate={navigate} queueCount={jb.queue.length} />
+        </>
+      ) : (
+        <>
+          <QueuePanel jb={jb} />
+          <PlayerBar jb={jb} />
+        </>
+      )}
 
       {picker && <FavoritePicker track={picker.track} anchor={picker.anchor} lists={jb.favorites}
         notify={notify} onClose={() => setPicker(null)} />}
@@ -241,6 +274,103 @@ function Sidebar({ view, navigate, connected, spotify, spotifyError, onAdmin, bl
   )
 }
 
+// ---------- Handy: Kopfzeile, Reiter, Mini-Player, «Mehr» ----------
+
+const MORE_VIEWS = ['radio', 'sounds', 'spotify', 'library', 'more']
+
+function PhoneHeader({ info, connected }) {
+  return (
+    <header className="phone-header">
+      <Logo size={34} />
+      <div>
+        <strong>{branding.name}</strong>
+        <span>Fernbedienung</span>
+      </div>
+      <span className={`phone-conn ${connected ? 'on' : ''}`} title={connected ? 'Mit der Jukebox verbunden' : 'Keine Verbindung'}>
+        <i /> {connected ? 'Verbunden' : 'Offline'}
+      </span>
+    </header>
+  )
+}
+
+function PhoneTabs({ view, navigate, queueCount }) {
+  const tabs = [
+    ['now', Disc3, 'Läuft'],
+    ['search', Search, 'Suchen'],
+    ['queue', ListMusic, 'Warteschlange'],
+    ['favorites', Star, 'Favoriten'],
+    ['more', Menu, 'Mehr'],
+  ]
+  const isActive = key => view === key || (key === 'search' && view === 'collection') || (key === 'more' && MORE_VIEWS.includes(view))
+  return (
+    <nav className="phone-tabs">
+      {tabs.map(([key, Icon, label]) => (
+        <button key={key} className={isActive(key) ? 'active' : ''} onClick={() => navigate(key)}>
+          <span className="phone-tab-icon">
+            <Icon size={22} />
+            {key === 'queue' && queueCount > 0 && <b>{queueCount}</b>}
+          </span>
+          {label}
+        </button>
+      ))}
+    </nav>
+  )
+}
+
+function MiniPlayer({ jb, onOpen }) {
+  const { current, playing, position, duration } = jb
+  const progress = current?.source !== 'radio' && duration ? Math.min(100, (position / duration) * 100) : 0
+  return (
+    <footer className="mini-player">
+      <button className="mini-track" onClick={onOpen}>
+        {current ? (
+          <>
+            <Cover track={current} size={42} />
+            <div className="row-info">
+              <strong>{current.title}</strong>
+              <span>{current.artist || current.subtitle}</span>
+            </div>
+          </>
+        ) : <span className="muted">Gerade läuft nichts</span>}
+      </button>
+      <button className="pb-play mini-play" onClick={actions.toggle} aria-label="Play/Pause">
+        {playing ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" />}
+      </button>
+      <button className="icon-btn" onClick={actions.next} aria-label="Weiter"><SkipForward size={22} fill="currentColor" /></button>
+      <i className="mini-progress" style={{ width: `${progress}%` }} />
+    </footer>
+  )
+}
+
+function MoreView({ navigate, spotify, connected, bluetooth, onSecret }) {
+  const secretTap = useSecretTaps(onSecret)
+  const items = [
+    ['radio', RadioIcon, 'Radio', 'Sender abspielen, suchen und hinzufügen'],
+    ['sounds', CircleDot, 'Soundboard', 'Kurze Sounds abspielen und hochladen'],
+    ...(spotify?.configured ? [['spotify', LibraryBig, 'Spotify', 'Playlists und Alben der Jukebox']] : []),
+    ['library', HardDrive, 'Lokale Musik', 'Dateien auf der Jukebox'],
+  ]
+  return (
+    <div className="more">
+      <h1>Mehr</h1>
+      <div className="more-list">
+        {items.map(([key, Icon, label, hint]) => (
+          <button key={key} className="admin-item" onClick={() => navigate(key)}>
+            <Icon size={22} />
+            <div><strong>{label}</strong><span>{hint}</span></div>
+            <ChevronRight size={20} className="admin-chevron" />
+          </button>
+        ))}
+      </div>
+      <h3 className="admin-sub">Status</h3>
+      <StatusPanel connected={connected} spotify={spotify} bt={bluetooth} />
+      <p className="muted small more-hint"><Laptop size={14} /> Die Musik spielt auf der Jukebox, nicht auf dem Handy.</p>
+      {/* Versteck: 5× tippen öffnet «Eigener Hintergrund» */}
+      <div className="copyright" onClick={secretTap}>{COPYRIGHT}</div>
+    </div>
+  )
+}
+
 // Kompakte Statusanzeige unten links: Stereoanlage, Spotify, Server
 function StatusPanel({ connected, spotify, spotifyError, bt }) {
   const rows = []
@@ -298,7 +428,7 @@ function StatusPanel({ connected, spotify, spotifyError, bt }) {
 
 // ---------- Jetzt läuft ----------
 
-function NowPlaying({ jb, enqueue, goSearch }) {
+function NowPlaying({ jb, enqueue, goSearch, controls }) {
   const { current, history, playing } = jb
 
   if (!current) {
@@ -308,6 +438,7 @@ function NowPlaying({ jb, enqueue, goSearch }) {
         <h1>Gerade läuft nichts</h1>
         <p>Such dir einen Song aus und füg ihn zur Warteschlange hinzu.</p>
         <button className="btn-primary" onClick={goSearch}><Search size={20} /> Musik suchen</button>
+        {controls}
         {history.length > 0 && <HistoryStrip history={history} enqueue={enqueue} />}
       </div>
     )
@@ -315,7 +446,7 @@ function NowPlaying({ jb, enqueue, goSearch }) {
 
   // Auf dem Surface wird bei YouTube das Video statt des Covers gezeigt
   const showVideo = !IS_REMOTE && current.source === 'youtube'
-  if (current.source === 'radio') return <NowPlayingRadio jb={jb} enqueue={enqueue} />
+  if (current.source === 'radio') return <NowPlayingRadio jb={jb} enqueue={enqueue} controls={controls} />
 
   return (
     <div className="now">
@@ -335,13 +466,14 @@ function NowPlaying({ jb, enqueue, goSearch }) {
           </div>
         </div>
       </div>
+      {controls}
       {history.length > 0 && <HistoryStrip history={history} enqueue={enqueue} />}
     </div>
   )
 }
 
 // Radio: Sendername gross, darunter der laufende Song (falls der Sender ihn mitschickt)
-function NowPlayingRadio({ jb, enqueue }) {
+function NowPlayingRadio({ jb, enqueue, controls }) {
   const { current, history, playing } = jb
   const song = current.now_playing
   const [artist, title] = song && song.includes(' - ') ? song.split(/ - (.+)/) : [null, song]
@@ -361,6 +493,7 @@ function NowPlayingRadio({ jb, enqueue }) {
           <p className="radio-hint">Läuft, bis jemand einen Song wünscht. «Weiter» wechselt zum nächsten Sender.</p>
         </div>
       </div>
+      {controls}
       {history.length > 0 && <HistoryStrip history={history} enqueue={enqueue} />}
     </div>
   )

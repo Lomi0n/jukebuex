@@ -2,7 +2,7 @@
 
 Eine Jukebox für zu Hause: ein Linux-Gerät mit Touchscreen (z. B. ein Surface oder ein alter
 Laptop) spielt Musik von **Spotify**, **YouTube**, **Webradio** und aus **lokalen Dateien** über eine
-Bluetooth-Stereoanlage. Gäste wünschen sich Songs bequem vom PC oder Laptop aus über die
+Bluetooth-Stereoanlage. Gäste wünschen sich Songs bequem vom Handy, PC oder Laptop aus über die
 Fernbedienung im Browser.
 
 - Vollbild-Oberfläche für den Touchscreen mit Warteschlange, Verlauf, Favoritenlisten und Soundboard
@@ -11,7 +11,8 @@ Fernbedienung im Browser.
   (Vorschläge über Deezer, optional Last.fm; abspielbar über YouTube oder Spotify)
 - Skins: JUKEBÜX, Retro 50er, 80er Synthwave, Swiss Edition, Kritzelbuch und Kritzelbuch Nacht
   (Wahl im Wartungsmenü oder in der Einrichtung)
-- Fernbedienung im Browser: `http://<IP-der-Jukebox>:8000/remote`
+- Fernbedienung im Browser: `http://<IP-der-Jukebox>:8000/remote` – am PC wie auf dem Handy
+  (eigene Handy-Ansicht mit Reitern unten)
 - Bluetooth-Wächter, der die Stereoanlage verbunden hält
 - Bildschirmschoner, verstecktes Wartungsmenü, wöchentliche automatische Wartung mit Updates
 - Einrichtungsassistent beim ersten Start – am Gerät oder am PC
@@ -67,7 +68,7 @@ Wartungsmenü **Einrichtung erneut starten** wählen.
 | Was | Wo |
 |---|---|
 | Jukebox | Vollbild auf dem Gerät |
-| Fernbedienung | `http://<IP>:8000/remote` von jedem PC im selben Netz |
+| Fernbedienung | `http://<IP>:8000/remote` von jedem PC oder Handy im selben Netz |
 | Sounds hochladen | nur über die Fernbedienung (nicht am Gerät selbst) |
 | Radiosender suchen/hinzufügen | nur über die Fernbedienung, abspielen auch am Gerät |
 | Wartungsmenü | Logo oben links 2 Sekunden gedrückt halten |

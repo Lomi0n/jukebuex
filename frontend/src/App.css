@@ -601,3 +601,91 @@ kbd { padding: 2px 7px; border-radius: 5px; background: var(--bg); border: 1px s
 .bg-sliders label span { display: flex; justify-content: space-between; }
 .bg-sliders label b { color: var(--muted); font-weight: 600; }
 .bg-sliders input { accent-color: var(--accent); }
+
+/* ---------- Fernbedienung auf dem Handy ---------- */
+.shell.is-phone { height: 100dvh; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto auto; gap: 0; padding: 0; }
+.is-phone .main { border-radius: 0; padding: 18px 16px 28px; }
+.phone-header { display: flex; align-items: center; gap: 10px; padding: calc(10px + env(safe-area-inset-top)) 16px 10px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.phone-header strong { display: block; font: 700 15px var(--brand); letter-spacing: 2px; }
+.phone-header div span { font-size: 11.5px; color: var(--muted); }
+.phone-conn { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; padding: 5px 10px; border-radius: 20px; background: var(--panel-2); font-size: 11.5px; font-weight: 700; color: var(--danger); }
+.phone-conn i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.phone-conn.on { color: var(--muted); }
+.phone-conn.on i { background: var(--ok); box-shadow: 0 0 6px color-mix(in srgb, var(--ok) 53%, transparent); }
+
+.phone-tabs { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); padding: 4px 4px calc(4px + env(safe-area-inset-bottom)); background: var(--panel); border-top: 1px solid var(--line); }
+.phone-tabs button { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 7px 0 6px; border-radius: 10px; color: var(--muted); font-size: 10.5px; font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.phone-tabs button.active { color: var(--text); }
+.phone-tabs button.active svg { color: var(--accent); }
+.phone-tab-icon { position: relative; display: grid; place-items: center; width: 52px; height: 28px; border-radius: 14px; }
+.phone-tabs button.active .phone-tab-icon { background: var(--panel-2); }
+.phone-tab-icon b { position: absolute; top: -3px; right: 4px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 9px; background: var(--accent); color: var(--accent-ink); font-size: 10px; line-height: 17px; text-align: center; }
+
+.mini-player { position: relative; display: flex; align-items: center; gap: 6px; padding: 8px 10px 8px 8px; margin: 0 8px 8px; border-radius: 12px;
+  background: color-mix(in srgb, var(--cover) 30%, var(--panel-2)); overflow: hidden; }
+.mini-track { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; text-align: left; }
+.mini-track .cover { border-radius: 6px; box-shadow: none; }
+.mini-track .row-info strong { font-size: 14px; }
+.mini-track .row-info span { font-size: 12px; }
+.mini-play { width: 42px; height: 42px; flex: 0 0 auto; }
+.mini-progress { position: absolute; left: 0; bottom: 0; height: 2px; background: var(--accent); }
+
+/* Jetzt läuft: Cover oben, Steuerung darunter */
+.is-phone .now-hero { flex-direction: column; align-items: stretch; gap: 18px; padding: 4px 0 8px; }
+.is-phone .now-cover { width: min(70%, 240px) !important; height: auto !important; aspect-ratio: 1; align-self: center; }
+.is-phone .now-text { gap: 8px; }
+.is-phone .now-text h1 { font-size: 28px; letter-spacing: -.5px; }
+.is-phone .now-text p { font-size: 16px; }
+.is-phone .now-meta .btn-secondary { margin: 0; }
+.is-phone .now .playerbar, .is-phone .now-empty .playerbar { display: flex; flex-direction: column; gap: 10px; min-height: 0; margin: 4px 0 26px; padding: 14px 12px; border-radius: 14px; background: var(--panel-2); }
+.is-phone .main .playerbar .pb-track { display: none; }
+.is-phone .main .playerbar .pb-center { width: 100%; }
+.is-phone .main .playerbar .pb-volume { width: 100%; justify-content: flex-start; }
+.is-phone .main .playerbar .pb-volume input { max-width: none; }
+.is-phone .now-empty { padding-top: 4vh; }
+.is-phone .now-empty h1 { font-size: 26px; }
+.is-phone .history h2 { font-size: 19px; }
+
+/* Warteschlange als eigener Reiter */
+.is-phone .main > .queue-panel { padding: 0; background: none; overflow: visible; }
+.is-phone .main > .queue-panel h2 { font-size: 26px; padding: 0 4px 4px; }
+.is-phone .main > .queue-panel h3 { padding: 18px 4px 6px; }
+.is-phone .main > .queue-panel .row { padding: 8px 4px; }
+
+/* Listen, Kopfzeilen und Raster schmaler */
+.is-phone .row { gap: 10px; padding: 8px 4px; }
+.is-phone .row .badge, .is-phone .row-time, .is-phone .row-index { display: none; }
+.is-phone .row .icon-btn { width: 38px; height: 38px; }
+.is-phone .row-play { opacity: .9; background: color-mix(in srgb, var(--shadow) 40%, transparent); }
+.is-phone .head-row { flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+.is-phone .head-row h1, .is-phone .library h1, .is-phone .spotify-home h1, .is-phone .collection h1, .is-phone .more h1 { font-size: 26px; }
+.is-phone .sb-actions { justify-content: flex-start; }
+.is-phone .search-bar { height: 52px; padding-left: 16px; }
+.is-phone .search-bar input { font-size: 16px; }
+.is-phone .chips { flex-wrap: wrap; margin-top: 14px; }
+.is-phone .chip { padding: 8px 14px; font-size: 13px; }
+.is-phone .search-start { padding-top: 6vh; }
+.is-phone .grid, .is-phone .station-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.is-phone .card { padding: 10px; }
+.is-phone .card .cover { width: 100% !important; height: auto !important; aspect-ratio: 1; }
+.is-phone .collection-head { flex-direction: column; align-items: flex-start; gap: 16px; }
+.is-phone .collection-head .cover { width: 160px !important; height: 160px !important; }
+.is-phone .mixes-head { flex-direction: column; gap: 10px; }
+.is-phone .sb-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px 6px; }
+.is-phone .sb-volume input { width: 110px; }
+.is-phone .radio-empty { padding: 16px; }
+.is-phone .toast { bottom: calc(150px + env(safe-area-inset-bottom)); width: max-content; max-width: calc(100vw - 32px); text-align: center; }
+
+/* «Mehr» */
+.more h1 { margin-bottom: 14px; }
+.more-list { display: grid; gap: 8px; margin-bottom: 22px; }
+.more .admin-sub { margin: 0 0 10px; }
+.more .status-panel { margin-bottom: 14px; }
+.more-hint { display: flex; align-items: center; gap: 8px; margin: 0 0 18px; }
+.more-hint svg { color: var(--accent); flex: 0 0 auto; }
+.more .copyright { padding: 0; }
+.is-phone .dialog { top: 6vh; width: calc(100vw - 24px); padding: 18px; }
+.is-phone .status-label, .is-phone .status-text, .is-phone .status-action { display: initial; }
+.is-phone .status-row { justify-content: flex-start; }
+.is-phone .now-empty .playerbar { width: 100%; margin-top: 18px; }
+.is-phone .now-text h1 { font-size: 26px; }
