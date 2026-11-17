@@ -1,7 +1,13 @@
 #!/bin/bash
 # JUKEBÜX – © 2026 Lomi0n. PolyForm Strict License 1.0.0 (siehe LICENSE).
-# JUKEBÜX-Vollbild (neu) starten – funktioniert auch per SSH
+# JUKEBÜX-Oberfläche (neu) starten, im Vollbild oder Fenster – funktioniert auch per SSH
 pkill -f '[j]ukebox-chrome' && sleep 2
-systemd-run --user --collect --quiet "$HOME/.local/bin/jukebox-kiosk" \
-  && echo "Jukebox-Vollbild wird gestartet." \
-  || echo "Start fehlgeschlagen – notfalls: sudo reboot"
+if systemd-run --user --collect --quiet "$HOME/.local/bin/jukebox-kiosk" 2> /dev/null; then
+  echo "Jukebox-Oberfläche wird gestartet."
+elif [ -n "$WAYLAND_DISPLAY$DISPLAY" ]; then
+  # Ohne Benutzer-systemd direkt aus dieser Sitzung starten
+  setsid -f "$HOME/.local/bin/jukebox-kiosk" > /dev/null 2>&1
+  echo "Jukebox-Oberfläche wird gestartet."
+else
+  echo "Start fehlgeschlagen – notfalls: sudo reboot"
+fi

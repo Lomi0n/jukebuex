@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, Pencil, Trash2, Square, Volume2, Search, X, Upload, Play, ImageOff, Download, FileUp, LoaderCircle } from 'lucide-react'
 import { API, soundActions } from './jukebox'
 import Keyboard from './Keyboard'
+import { useTouchInput } from './input'
 
 const IS_REMOTE = window.location.pathname.startsWith('/remote')
 
@@ -31,7 +32,8 @@ export function SoundButton({ sound, color, image, onPress, size = 104 }) {
 
 export function SoundsView({ jb, notify }) {
   const [filter, setFilter] = useState('')
-  const [keyboard, setKeyboard] = useState(false)
+  const [keyboardWanted, setKeyboard] = useState(false)
+  const keyboard = useTouchInput() && keyboardWanted
   const [editing, setEditing] = useState(false)
   const [dialog, setDialog] = useState(null)        // null | 'new' | sound
   const [confirmDelete, setConfirmDelete] = useState(null)
@@ -185,7 +187,8 @@ function SoundDialog({ sound, notify, onClose }) {
   const [dropImage, setDropImage] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
-  const [keyboard, setKeyboard] = useState(false)
+  const [keyboardWanted, setKeyboard] = useState(false)
+  const keyboard = useTouchInput() && keyboardWanted
   const previewRef = useRef(null)
 
   const localImage = useMemo(() => imageFile ? URL.createObjectURL(imageFile) : null, [imageFile])

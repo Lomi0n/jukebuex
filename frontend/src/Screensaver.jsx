@@ -5,7 +5,7 @@ import { getJson, branding } from './jukebox'
 import { Cover, SourceBadge, formatTime } from './components'
 
 // Bildschirmschoner für das Surface: nach einigen Minuten ohne Berührung
-// grosses Cover, Titel, Uhrzeit und "Als Nächstes". Ein Tipp beendet ihn.
+// grosses Cover, Titel, Uhrzeit und "Als Nächstes". Ein Tipp, eine Mausbewegung oder eine Taste beendet ihn.
 const IDLE_MINUTES = 5
 
 const WEEKDAYS = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag']
@@ -18,14 +18,42 @@ export default function Screensaver({ jb }) {
   const lastActivity = useRef(Date.now())
   const { current, queue, playing, position, duration } = jb
 
-  // Jede Berührung zählt als Aktivität
+  // Jede Berührung, Taste und Mausbewegung zählt als Aktivität
   useEffect(() => {
     const touch = () => { lastActivity.current = Date.now() }
+    const move = event => { if (event.pointerType === 'mouse') touch() }
     const events = ['pointerdown', 'keydown', 'wheel']
     events.forEach(e => document.addEventListener(e, touch, true))
+    document.addEventListener('pointermove', move, true)
     getJson('/api/info').then(info => info && setRemoteUrl(info.remote_url))
-    return () => events.forEach(e => document.removeEventListener(e, touch, true))
+    return () => {
+      events.forEach(e => document.removeEventListener(e, touch, true))
+      document.removeEventListener('pointermove', move, true)
+    }
   }, [])
+
+  // Aktiver Schoner: Maus bewegen oder eine Taste drücken beendet ihn
+  useEffect(() => {
+    if (!active) return
+    const started = Date.now()
+    let travelled = 0
+    function move(event) {
+      if (event.pointerType !== 'mouse' || Date.now() - started < 500) return
+      travelled += Math.abs(event.movementX) + Math.abs(event.movementY)
+      if (travelled > 12) { lastActivity.current = Date.now(); setActive(false) }   // kleines Zittern ignorieren
+    }
+    function key(event) {
+      event.preventDefault()
+      lastActivity.current = Date.now()
+      setActive(false)
+    }
+    document.addEventListener('pointermove', move, true)
+    document.addEventListener('keydown', key, true)
+    return () => {
+      document.removeEventListener('pointermove', move, true)
+      document.removeEventListener('keydown', key, true)
+    }
+  }, [active])
 
   // Läuft ein YouTube-Video, ist das Video selbst der Blickfang – dann kein Bildschirmschoner
   const videoPlaying = current?.source === 'youtube' && playing

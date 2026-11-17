@@ -689,3 +689,25 @@ kbd { padding: 2px 7px; border-radius: 5px; background: var(--bg); border: 1px s
 .is-phone .status-row { justify-content: flex-start; }
 .is-phone .now-empty .playerbar { width: 100%; margin-top: 18px; }
 .is-phone .now-text h1 { font-size: 26px; }
+
+/* ---------- Bedienung mit Maus (data-pointer am <html>, siehe input.js) ---------- */
+/* Am Gerät mit Maus: Abspiel-Knopf auf dem Cover erst beim Überfahren, wie an der Fernbedienung */
+html[data-pointer="mouse"] .is-surface .row-play { opacity: 0; background: color-mix(in srgb, var(--shadow) 67%, transparent); }
+html[data-pointer="mouse"] .is-surface .row:hover .row-play { opacity: 1; }
+/* Sichtbarer Fokus für die Tastatur */
+html[data-input="key"] :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Mit der Maus: Knöpfe in der Warteschlange erst beim Überfahren, damit die Titel Platz haben */
+html[data-pointer="mouse"] .queue-panel .row:not(:hover):not(:focus-within):not(.dragging) .icon-btn { display: none; }
+
+/* ---------- Fenster ab ca. 1200 × 700 (Laptop, Fenstermodus) ---------- */
+@media (max-width: 1200px) {
+  .logo-version, .status-text { display: none; }
+  .yt-dock.mini { right: 16px; width: 284px; height: 160px; }
+  .is-surface.yt-active .queue-panel { padding-bottom: 190px; }
+}
+@media (max-height: 800px) {
+  .logo { padding-bottom: 14px; }
+  .sidebar nav button { padding-block: 10px; }
+  .sidebar-foot { gap: 6px; }
+  .status-row { min-height: 30px; }
+}

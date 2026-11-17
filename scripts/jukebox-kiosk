@@ -29,10 +29,16 @@ if [ -z "$BROWSER" ]; then
   exit 1
 fi
 
+# Vollbild (Standard) oder Fenster – umschaltbar im Wartungsmenü (config.env: JUKEBOX_WINDOW=1)
+CONFIG="$HOME/jukebox/backend/config.env"
+MODE=(--kiosk "$BASE/")
+if [ -f "$CONFIG" ] && grep -qE '^JUKEBOX_WINDOW="?1"?' "$CONFIG"; then
+  MODE=(--app="$BASE/" --start-maximized --window-size=1280,800)
+fi
+
 # Das Profil "jukebox-chrome" dient auch zum Wiedererkennen (jukebox-stop)
 exec "$BROWSER" \
   --user-data-dir="$PROFILE" \
-  --kiosk \
   --no-first-run \
   --noerrdialogs \
   --disable-infobars \
@@ -44,4 +50,4 @@ exec "$BROWSER" \
   --enable-wayland-ime \
   --wayland-text-input-version=3 \
   --check-for-update-interval=31536000 \
-  "$BASE/"
+  "${MODE[@]}"

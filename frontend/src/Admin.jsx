@@ -1,14 +1,16 @@
 /* JUKEBÜX – © 2026 Lomi0n. PolyForm Strict License 1.0.0 (siehe LICENSE). */
 import { useEffect, useRef, useState } from 'react'
-import { RotateCw, Minimize, Power, PowerOff, RefreshCcw, Settings2, X, Palette, ChevronRight, ArrowLeft } from 'lucide-react'
+import { RotateCw, Minimize, Power, PowerOff, RefreshCcw, Settings2, X, Palette, ChevronRight, ArrowLeft, AppWindow, Maximize } from 'lucide-react'
 import { API, getJson, applySkin } from './jukebox'
 import { SkinPicker, SKINS } from './Skins'
 import { COPYRIGHT } from './Brand'
 
-// Verstecktes Wartungsmenü (nur am Jukebox-Gerät): Logo oben links 2 Sekunden gedrückt halten
+// Verstecktes Wartungsmenü (nur am Jukebox-Gerät): Logo oben links 2 Sekunden gedrückt halten,
+// mit der Maus auch Rechtsklick aufs Logo, mit der Tastatur F2
 
 export function useLongPress(onLongPress, ms = 2000) {
   const timer = useRef(null)
+  const pointerType = useRef('touch')
   const [pressing, setPressing] = useState(false)
   function cancel() {
     clearTimeout(timer.current)
@@ -17,14 +19,20 @@ export function useLongPress(onLongPress, ms = 2000) {
   return {
     pressing,
     handlers: {
-      onPointerDown: () => {
+      onPointerDown: event => {
+        pointerType.current = event.pointerType
+        if (event.button === 2) return
         setPressing(true)
         timer.current = setTimeout(() => { setPressing(false); onLongPress() }, ms)
       },
       onPointerUp: cancel,
       onPointerLeave: cancel,
       onPointerCancel: cancel,
-      onContextMenu: e => e.preventDefault(),
+      // Rechtsklick öffnet sofort (bei Touch löst langes Drücken ebenfalls contextmenu aus – dort zählen die 2 Sekunden)
+      onContextMenu: e => {
+        e.preventDefault()
+        if (pointerType.current === 'mouse') { cancel(); onLongPress() }
+      },
     },
   }
 }
@@ -32,6 +40,8 @@ export function useLongPress(onLongPress, ms = 2000) {
 const ITEMS = [
   { key: 'reload', icon: RefreshCcw, label: 'Oberfläche neu laden', hint: 'Lädt die Seite neu, die Musik läuft weiter.' },
   { key: 'setup', icon: Settings2, label: 'Einrichtung erneut starten', hint: 'Name, Spotify, YouTube, Lautsprecher ändern.' },
+  { key: 'window', icon: AppWindow, label: 'Im Fenster anzeigen', hint: 'Für PC und Laptop mit Maus. Die Oberfläche startet kurz neu.' },
+  { key: 'fullscreen', icon: Maximize, label: 'Im Vollbild anzeigen', hint: 'Wie ein Jukebox-Bildschirm. Die Oberfläche startet kurz neu.' },
   { key: 'exit-kiosk', icon: Minimize, label: 'Vollbild beenden', hint: 'Zum Ubuntu-Desktop. Der Server läuft weiter.' },
   { key: 'stop', icon: PowerOff, label: 'Jukebox komplett beenden', hint: 'Schliesst Vollbild und Server.' },
   { key: 'reboot', icon: RotateCw, label: 'Gerät neu starten', hint: 'Danach startet die Jukebox automatisch.' },
@@ -39,6 +49,8 @@ const ITEMS = [
 ]
 
 const DONE = {
+  window: 'Wechselt ins Fenster …',
+  fullscreen: 'Wechselt ins Vollbild …',
   'exit-kiosk': 'Vollbild wird beendet …',
   stop: 'Jukebox wird beendet …',
   reboot: 'Gerät startet neu …',
@@ -52,6 +64,13 @@ export function AdminMenu({ onClose }) {
   const [maintenance, setMaintenance] = useState(null)
   const [skin, setSkin] = useState(document.documentElement.dataset.skin || 'standard')
   const [page, setPage] = useState('main')     // 'main' = Liste, 'skins' = Aussehen wählen
+  const [windowMode, setWindowMode] = useState(null)
+  useEffect(() => { getJson('/api/info').then(info => info && setWindowMode(!!info.window)) }, [])
+  const items = ITEMS
+    .filter(item => item.key !== (windowMode ? 'window' : 'fullscreen') && !(windowMode === null && ['window', 'fullscreen'].includes(item.key)))
+    .map(item => item.key === 'exit-kiosk' && windowMode
+      ? { ...item, label: 'Oberfläche schliessen', hint: 'Schliesst das Fenster. Der Server läuft weiter.' }
+      : item)
   const skinName = SKINS.find(s => s.key === skin)?.name || 'JUKEBÜX'
   useEffect(() => { getJson('/api/system/maintenance').then(setMaintenance) }, [])
 
@@ -75,7 +94,10 @@ export function AdminMenu({ onClose }) {
       return
     }
     try {
-      const response = await fetch(`${API}/api/system/${key}`, { method: 'POST' })
+      const display = ['window', 'fullscreen'].includes(key)
+      const response = await fetch(`${API}/api/system/${display ? 'window' : key}`, display
+        ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ window: key === 'window' }) }
+        : { method: 'POST' })
       if (!response.ok) throw new Error((await response.json()).detail)
       setDone(DONE[key])
     } catch (e) {
@@ -113,7 +135,7 @@ export function AdminMenu({ onClose }) {
           <ChevronRight size={20} className="admin-chevron" />
         </button>
         <h3 className="admin-sub">System <span>Zum Ausführen zweimal tippen.</span></h3>
-        {ITEMS.map(({ key, icon: Icon, label, hint }) => (
+        {items.map(({ key, icon: Icon, label, hint }) => (
           <button key={key} className={`admin-item ${armed === key ? 'armed' : ''} ${['stop', 'reboot', 'poweroff'].includes(key) ? 'risky' : ''}`}
             onClick={() => run(key)}>
             <Icon size={22} />

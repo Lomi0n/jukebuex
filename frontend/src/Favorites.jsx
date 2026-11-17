@@ -6,6 +6,7 @@ import {
 import { actions, favoriteActions } from './jukebox'
 import { Cover, SortableList, TrackRow, trackKey } from './components'
 import Keyboard from './Keyboard'
+import { useTouchInput } from './input'
 import { MixesSection, MixListView } from './Mixes'
 
 const IS_REMOTE = window.location.pathname.startsWith('/remote')
@@ -28,6 +29,7 @@ function minutes(tracks) {
 export function NameDialog({ title, initial = '', confirmLabel, onSave, onClose }) {
   const [name, setName] = useState(initial)
   const inputRef = useRef(null)
+  const touch = useTouchInput()
   useEffect(() => { inputRef.current?.focus() }, [])
 
   function save(event) {
@@ -46,7 +48,7 @@ export function NameDialog({ title, initial = '', confirmLabel, onSave, onClose 
           <button type="submit" className="btn-primary" disabled={!name.trim()}>{confirmLabel}</button>
         </div>
       </form>
-      {!IS_REMOTE && (
+      {!IS_REMOTE && touch && (
         <Keyboard value={name} onChange={v => setName(v.slice(0, 60))} onEnter={save} onClose={onClose}
           enterLabel={confirmLabel} />
       )}

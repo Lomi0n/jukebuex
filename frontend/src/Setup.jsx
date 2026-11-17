@@ -8,6 +8,7 @@ import { API, applySkin } from './jukebox'
 import { SkinPicker } from './Skins'
 import { Logo, COPYRIGHT } from './Brand'
 import Keyboard from './Keyboard'
+import { useTouchInput } from './input'
 import './Setup.css'
 
 // ---------- Einrichtungsassistent ----------
@@ -178,7 +179,8 @@ function Nav({ back, next, nextLabel = 'Weiter', skip, busy, nextDisabled }) {
 
 // Eingabefeld: am Jukebox-Bildschirm mit eigener Tastatur, am PC normal
 function Field({ label, value, onChange, onDevice, placeholder, secret, onEnter, mono, maxLength }) {
-  const [keyboard, setKeyboard] = useState(false)
+  const [keyboardWanted, setKeyboard] = useState(false)
+  const keyboard = useTouchInput() && keyboardWanted
   const [show, setShow] = useState(false)
   const input = useRef(null)
   return (

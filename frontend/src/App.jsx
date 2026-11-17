@@ -11,6 +11,7 @@ import AudioEngine from './AudioEngine'
 import YouTubeEngine from './YouTubeEngine'
 import SpotifyEngine from './SpotifyEngine'
 import Keyboard from './Keyboard'
+import { useTouchInput, typingInField, useWheelValue } from './input'
 import { Cover, SourceBadge, TrackRow, SortableList, FavoritesContext, formatTime, trackKey } from './components'
 import { FavoritesView, FavoritePicker } from './Favorites'
 import { AdminMenu, useLongPress } from './Admin'
@@ -144,6 +145,42 @@ function JukeboxApp({ info }) {
     if (phone) document.querySelector('.main')?.scrollTo(0, 0)
   }
 
+  // Tastenkürzel (echte Tastatur): Leertaste, Pfeile, «/», Esc – F2 öffnet am Gerät das Wartungsmenü
+  const keyState = useRef({})
+  keyState.current = { jb, navigate }
+  useEffect(() => {
+    function onKey(event) {
+      if (event.defaultPrevented || event.altKey || event.metaKey) return
+      const { jb, navigate } = keyState.current
+      if (event.key === 'F2' && !IS_REMOTE) { event.preventDefault(); setAdmin(true); return }
+      if (event.key === 'Escape') { closeTopmost(); return }
+      if (event.ctrlKey || typingInField(event.target) || event.target?.type === 'range') return
+      if (document.querySelector('.dialog-backdrop, .popover-backdrop, .saver')) return
+      switch (event.key) {
+        case ' ':
+          event.preventDefault(); actions.toggle(); break
+        case 'ArrowRight':
+          event.preventDefault(); actions.next(); break
+        case 'ArrowLeft':
+          event.preventDefault(); actions.previous(); break
+        case 'ArrowUp':
+        case 'ArrowDown': {
+          event.preventDefault()
+          const step = event.key === 'ArrowUp' ? 5 : -5
+          jb.changeVolume(Math.max(0, Math.min(100, Math.round((jb.volume + step) / 5) * 5)))
+          break
+        }
+        case '/':
+          event.preventDefault()
+          navigate('search')
+          setTimeout(() => document.querySelector('.search-bar input')?.focus(), 50)
+          break
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [])
+
   // Album oder YouTube-Playlist aus der Suche öffnen; "Zurück" führt wieder zur Suche
   function openFromSearch(item) {
     setSearchCollection({ ...item, from: 'search' })
@@ -272,6 +309,14 @@ function Sidebar({ view, navigate, connected, spotify, spotifyError, onAdmin, bl
       </div>
     </aside>
   )
+}
+
+// Esc: den obersten Dialog oder die oberste Auswahl schliessen (wie ein Tipp daneben)
+function closeTopmost() {
+  const layers = document.querySelectorAll('.dialog-backdrop, .popover-backdrop')
+  const top = layers[layers.length - 1]
+  if (top) top.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse' }))
+  else if (typingInField()) document.activeElement.blur()
 }
 
 // ---------- Handy: Kopfzeile, Reiter, Mini-Player, «Mehr» ----------
@@ -531,7 +576,8 @@ function SearchView({ active, enqueue, openCollection }) {
   const [source, setSource] = useState('all')
   const [ytQuery, setYtQuery] = useState('')      // wofür YouTube zuletzt gesucht hat
   const [ytLoading, setYtLoading] = useState(false)
-  const [keyboard, setKeyboard] = useState(false)
+  const [keyboardWanted, setKeyboard] = useState(false)
+  const keyboard = useTouchInput() && keyboardWanted
   const inputRef = useRef(null)
   const q = query.trim()
 
@@ -586,6 +632,7 @@ function SearchView({ active, enqueue, openCollection }) {
         <input ref={inputRef} value={query} onChange={e => setQuery(e.target.value)}
           inputMode={IS_REMOTE ? undefined : 'none'}
           onFocus={() => !IS_REMOTE && setKeyboard(true)}
+          onKeyDown={e => { if (e.key === 'Escape') { setKeyboard(false); inputRef.current?.blur() } }}
           placeholder="Was möchtest du hören? Titel, Interpret, Album …" />
         {query && <button type="button" className="icon-btn" onClick={() => setQuery('')}><X size={20} /></button>}
       </form>
@@ -896,6 +943,8 @@ function QueueList({ queue }) {
 
 function PlayerBar({ jb }) {
   const { current, playing, position, duration, volume } = jb
+  const volumeRef = useRef(null)
+  useWheelValue(volumeRef, volume, jb.changeVolume)
   return (
     <footer className="playerbar">
       <div className="pb-track">
@@ -937,7 +986,7 @@ function PlayerBar({ jb }) {
         <button className="icon-btn" onClick={() => jb.changeVolume(volume > 0 ? 0 : 60)} aria-label="Stumm">
           {volume > 0 ? <Volume2 size={22} /> : <VolumeX size={22} />}
         </button>
-        <input type="range" min="0" max="100" value={volume}
+        <input ref={volumeRef} type="range" min="0" max="100" value={volume}
           onChange={e => jb.changeVolume(Number(e.target.value))} />
       </div>
     </footer>

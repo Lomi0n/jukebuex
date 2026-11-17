@@ -1,7 +1,7 @@
 # JUKEBÜX
 
-Eine Jukebox für zu Hause: ein Linux-Gerät mit Touchscreen (z. B. ein Surface oder ein alter
-Laptop) spielt Musik von **Spotify**, **YouTube**, **Webradio** und aus **lokalen Dateien** über eine
+Eine Jukebox für zu Hause: ein Linux-Gerät mit Touchscreen oder Maus und Tastatur (z. B. ein Surface
+oder ein alter Laptop) spielt Musik von **Spotify**, **YouTube**, **Webradio** und aus **lokalen Dateien** über eine
 Bluetooth-Stereoanlage. Gäste wünschen sich Songs bequem vom Handy, PC oder Laptop aus über die
 Fernbedienung im Browser.
 
@@ -14,6 +14,8 @@ Fernbedienung im Browser.
 - Fernbedienung im Browser: `http://<IP-der-Jukebox>:8000/remote` – am PC wie auf dem Handy
   (eigene Handy-Ansicht mit Reitern unten)
 - Bluetooth-Wächter, der die Stereoanlage verbunden hält
+- Bedienung per Touch oder mit Maus und Tastatur (Tastenkürzel, Bildschirmtastatur nur bei Touch)
+- Vollbild oder Fenster, umschaltbar im Wartungsmenü
 - Bildschirmschoner, verstecktes Wartungsmenü, wöchentliche automatische Wartung mit Updates
 - Einrichtungsassistent beim ersten Start – am Gerät oder am PC
 
@@ -71,14 +73,27 @@ Wartungsmenü **Einrichtung erneut starten** wählen.
 | Fernbedienung | `http://<IP>:8000/remote` von jedem PC oder Handy im selben Netz |
 | Sounds hochladen | nur über die Fernbedienung (nicht am Gerät selbst) |
 | Radiosender suchen/hinzufügen | nur über die Fernbedienung, abspielen auch am Gerät |
-| Wartungsmenü | Logo oben links 2 Sekunden gedrückt halten |
+| Wartungsmenü | Logo oben links 2 Sekunden gedrückt halten, Rechtsklick aufs Logo oder F2 |
 | Lokale Musik | MP3/FLAC in `~/Musik/Jukebox` (bzw. `~/Music/Jukebox`) |
+
+Tastenkürzel am Gerät und an der Fernbedienung am PC:
+
+| Taste | Wirkung |
+|---|---|
+| Leertaste | Play/Pause |
+| Pfeil links / rechts | Zurück / Weiter |
+| Pfeil hoch / runter | Lautstärke |
+| `/` | Suche öffnen |
+| Esc | Dialog schliessen |
+| F2 | Wartungsmenü (nur am Gerät) |
+
+Das Mausrad über dem Lautstärkeregler ändert die Lautstärke.
 
 Befehle im Terminal (auch per SSH):
 
 ```bash
-jukebox-restart          # Vollbild neu starten
-jukebox-stop             # Vollbild beenden, Server läuft weiter
+jukebox-restart          # Oberfläche neu starten (Vollbild oder Fenster)
+jukebox-stop             # Oberfläche beenden, Server läuft weiter
 jukebox-update           # Sicherung + Updates (System, JUKEBÜX, Python) + Neustart
 jukebox-update --backup  # nur Sicherung
 journalctl -u jukebox -n 50                    # Protokoll des Servers

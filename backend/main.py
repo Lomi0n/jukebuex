@@ -510,6 +510,7 @@ def info():
         "name": CONFIG.get("JUKEBOX_NAME") or DEFAULT_NAME,
         "subtitle": CONFIG.get("JUKEBOX_SUBTITLE") or "",
         "skin": current_skin(),
+        "window": window_mode(),
         "music_dir": str(MUSIC_DIR),
         "setup_open": setup["open"],
         "version": app_version(),
@@ -1850,6 +1851,40 @@ def run_later(command, delay=1):
     """Befehl kurz verzögert ausführen, damit die Antwort noch beim Browser ankommt."""
     subprocess.Popen(["bash", "-c", f"sleep {delay}; {command}"], start_new_session=True,
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def window_mode():
+    """Jukebox im Fenster statt im Vollbild (config.env: JUKEBOX_WINDOW=1)."""
+    return CONFIG.get("JUKEBOX_WINDOW") == "1"
+
+
+class DisplayMode(BaseModel):
+    window: bool
+
+
+# Oberfläche neu starten. Der Server läuft als Dienst, der Browser in der Sitzung des Benutzers:
+# die Sitzungs-Umgebung (Bildschirm, D-Bus) vom laufenden Browser übernehmen.
+KIOSK_RESTART = r"""
+PID=$(pgrep -f '[j]ukebox-chrome' | head -n 1)
+if [ -n "$PID" ] && [ -r "/proc/$PID/environ" ]; then
+  while IFS= read -r -d '' VAR; do
+    case "$VAR" in DISPLAY=*|WAYLAND_DISPLAY=*|XDG_RUNTIME_DIR=*|DBUS_SESSION_BUS_ADDRESS=*|XDG_SESSION_TYPE=*|XAUTHORITY=*) export "$VAR";; esac
+  done < "/proc/$PID/environ"
+fi
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=$XDG_RUNTIME_DIR/bus}"
+"$HOME/.local/bin/jukebox-restart"
+"""
+
+
+@app.post("/api/system/window")
+def set_window_mode(body: DisplayMode, request: Request):
+    """Vollbild oder Fenster umschalten; die Oberfläche startet dafür neu."""
+    if not is_local(request):
+        raise HTTPException(403, "Nur direkt am Jukebox-Gerät erlaubt")
+    save_config({"JUKEBOX_WINDOW": "1" if body.window else None})
+    run_later(KIOSK_RESTART)
+    return {"status": "ok", "window": body.window}
 
 
 @app.post("/api/system/{action}")
