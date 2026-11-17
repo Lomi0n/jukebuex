@@ -20,21 +20,20 @@ import os
 import re
 import secrets
 import socket
-import subprocess
 import tempfile
 import time
 import urllib.error
 import zipfile
 import urllib.parse
 import urllib.request
+import host       # Plattform-Schicht: Speicherorte und Systembefehle je Betriebssystem
 import mixer
 
-BACKEND_DIR = Path(__file__).resolve().parent
-CONFIG_FILE = BACKEND_DIR / "config.env"
-VERSION_FILE = BACKEND_DIR.parent / "VERSION"
+CONFIG_FILE = host.DATA_DIR / "config.env"
+VERSION_FILE = host.VERSION_FILE
 HISTORY_LIMIT = 10
 PORT = 8000
-FRONTEND_DIST = BACKEND_DIR.parent / "frontend" / "dist"
+FRONTEND_DIST = host.FRONTEND_DIST
 DEFAULT_NAME = "JUKEBÜX"
 COPYRIGHT = "JUKEBÜX © 2026 Lomi0n – PolyForm Strict License 1.0.0"
 SKINS = ("standard", "retro", "synthwave", "swiss", "kritzel", "kritzel-dark")   # Aussehen (frontend/src/skins.css)
@@ -92,7 +91,7 @@ def save_config(updates):
 
 
 apply_config()
-MUSIC_DIR = Path(CONFIG.get("MUSIC_DIR") or Path.home() / "Musik" / "Jukebox").expanduser()
+MUSIC_DIR = Path(CONFIG.get("MUSIC_DIR") or host.default_music_dir()).expanduser()
 MUSIC_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -114,13 +113,13 @@ app.add_middleware(
 
 app.mount("/music", StaticFiles(directory=str(MUSIC_DIR)), name="music")
 
-SOUND_DIR = Path(__file__).resolve().parent.parent / "sounds"   # ~/jukebox/sounds
+SOUND_DIR = host.SOUND_DIR
 SOUND_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/soundfiles", StaticFiles(directory=str(SOUND_DIR)), name="soundfiles")
 
 # ---------- Gespeicherter Zustand (übersteht Neustarts) ----------
 
-DATA_FILE = Path(__file__).parent / "data.json"
+DATA_FILE = host.DATA_DIR / "data.json"
 
 
 def load_data():
@@ -170,9 +169,9 @@ def save_json(path, data):
 
 
 # Automatische Mixe: eigene Dateien, damit data.json (wird oft gespeichert) klein bleibt
-PLAYS_FILE = Path(__file__).parent / "plays.json"        # Hörprofil
-MIXES_FILE = Path(__file__).parent / "mixes.json"        # fertige Mixe + Lückenfüller-Wahl
-MIX_CACHE_FILE = Path(__file__).parent / "mixcache.json" # Künstlerinfos + Spotify-Treffer
+PLAYS_FILE = host.DATA_DIR / "plays.json"        # Hörprofil
+MIXES_FILE = host.DATA_DIR / "mixes.json"        # fertige Mixe + Lückenfüller-Wahl
+MIX_CACHE_FILE = host.DATA_DIR / "mixcache.json" # Künstlerinfos + Spotify-Treffer
 plays = load_json(PLAYS_FILE, {})
 mixes = {"lists": [], "day": None, "updated": None, "filler_id": None, "filler_played": [], "blocked": [],
          **load_json(MIXES_FILE, {})}
@@ -514,6 +513,7 @@ def info():
         "music_dir": str(MUSIC_DIR),
         "setup_open": setup["open"],
         "version": app_version(),
+        "platform": host.NAME,
     }
 
 
@@ -698,7 +698,7 @@ SPOTIFY_REDIRECT_URI = "http://127.0.0.1:8000/api/spotify/callback"
 SPOTIFY_SCOPES = ("streaming user-read-email user-read-private "
                   "user-read-playback-state user-modify-playback-state "
                   "playlist-read-private playlist-read-collaborative user-library-read")
-SPOTIFY_TOKEN_FILE = Path(__file__).parent / "spotify_token.json"
+SPOTIFY_TOKEN_FILE = host.DATA_DIR / "spotify_token.json"
 _spotify_states = set()
 
 
@@ -1770,7 +1770,7 @@ class SetupSpeaker(BaseModel):
 
 def new_bt_task(action, mac=None):
     if not bluetooth_message()["watcher"]:
-        raise HTTPException(503, "Der Bluetooth-Wächter läuft nicht (systemctl --user status jukebox-bluetooth).")
+        raise HTTPException(503, host.BLUETOOTH_WATCHER_HINT)
     running = bt_task_view()
     if running and running["state"] in ("pending", "running"):
         raise HTTPException(409, "Bluetooth ist gerade beschäftigt – einen Moment bitte.")
@@ -1815,7 +1815,7 @@ def setup_reopen(request: Request):
 
 # ---------- Wartung (nur direkt am Jukebox-Gerät) ----------
 
-MAINTENANCE_FILE = Path(__file__).resolve().parent.parent / "system" / "letzte-wartung.json"
+MAINTENANCE_FILE = host.MAINTENANCE_FILE
 
 
 @app.get("/api/system/maintenance")
@@ -1824,34 +1824,6 @@ def last_maintenance():
         return json.loads(MAINTENANCE_FILE.read_text())
     except (OSError, ValueError):
         return {"time": None}
-
-SYSTEMCTL = "/usr/bin/systemctl"
-# Root-Hilfsskript vom Installer (funktioniert mit sudo und sudo-rs gleichermassen)
-SYSTEM_HELPER = Path("/usr/local/sbin/jukebox-system")
-
-
-def privileged(action):
-    """Systembefehl ohne Passwort (siehe /etc/sudoers.d/jukebox)."""
-    if SYSTEM_HELPER.exists():
-        return f"sudo -n {SYSTEM_HELPER} {action}"
-    return f"sudo -n {SYSTEMCTL} {action}" + (" jukebox" if action in ("start", "stop", "restart") else "")
-
-
-SYSTEM_ACTIONS = {
-    # Vollbild schliessen, Server läuft weiter
-    "exit-kiosk": lambda: "pkill -f '[j]ukebox-chrome'",
-    # Vollbild und Server beenden
-    "stop": lambda: f"pkill -f '[j]ukebox-chrome'; {privileged('stop')}",
-    "reboot": lambda: privileged("reboot"),
-    "poweroff": lambda: privileged("poweroff"),
-}
-
-
-def run_later(command, delay=1):
-    """Befehl kurz verzögert ausführen, damit die Antwort noch beim Browser ankommt."""
-    subprocess.Popen(["bash", "-c", f"sleep {delay}; {command}"], start_new_session=True,
-                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
 
 def window_mode():
     """Jukebox im Fenster statt im Vollbild (config.env: JUKEBOX_WINDOW=1)."""
@@ -1862,28 +1834,13 @@ class DisplayMode(BaseModel):
     window: bool
 
 
-# Oberfläche neu starten. Der Server läuft als Dienst, der Browser in der Sitzung des Benutzers:
-# die Sitzungs-Umgebung (Bildschirm, D-Bus) vom laufenden Browser übernehmen.
-KIOSK_RESTART = r"""
-PID=$(pgrep -f '[j]ukebox-chrome' | head -n 1)
-if [ -n "$PID" ] && [ -r "/proc/$PID/environ" ]; then
-  while IFS= read -r -d '' VAR; do
-    case "$VAR" in DISPLAY=*|WAYLAND_DISPLAY=*|XDG_RUNTIME_DIR=*|DBUS_SESSION_BUS_ADDRESS=*|XDG_SESSION_TYPE=*|XAUTHORITY=*) export "$VAR";; esac
-  done < "/proc/$PID/environ"
-fi
-export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
-export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=$XDG_RUNTIME_DIR/bus}"
-"$HOME/.local/bin/jukebox-restart"
-"""
-
-
 @app.post("/api/system/window")
 def set_window_mode(body: DisplayMode, request: Request):
     """Vollbild oder Fenster umschalten; die Oberfläche startet dafür neu."""
     if not is_local(request):
         raise HTTPException(403, "Nur direkt am Jukebox-Gerät erlaubt")
     save_config({"JUKEBOX_WINDOW": "1" if body.window else None})
-    run_later(KIOSK_RESTART)
+    host.run_later(host.restart_ui_command())
     return {"status": "ok", "window": body.window}
 
 
@@ -1891,10 +1848,10 @@ def set_window_mode(body: DisplayMode, request: Request):
 def system_action(action: str, request: Request):
     if not is_local(request):
         raise HTTPException(403, "Nur direkt am Jukebox-Gerät erlaubt")
-    command = SYSTEM_ACTIONS.get(action)
+    command = host.system_command(action)
     if not command:
         raise HTTPException(404, "Unbekannte Aktion")
-    run_later(command())
+    host.run_later(command)
     return {"status": "ok", "action": action}
 
 
@@ -2639,7 +2596,7 @@ _mix_schedule_task = None
 # Versteckte Funktion: nur über die Fernbedienung (5× auf den Urheber-Vermerk tippen), nie am Gerät selbst.
 # Das Bild bleibt auf diesem Gerät und wird auf Bildschirmgrösse verkleinert.
 
-BG_DIR = SOUND_DIR.parent / "background"      # ~/jukebox/background
+BG_DIR = host.BACKGROUND_DIR
 BG_DIR.mkdir(parents=True, exist_ok=True)
 MAX_BG_BYTES = 15 * 1024 * 1024
 BG_SIZE = (2736, 1824)                        # Surface Pro: mehr braucht es nicht

@@ -149,7 +149,7 @@ else
 fi
 tar -xzf "$WORK/jukebux.tar.gz" -C "$WORK"
 SRC="$WORK/jukebux"
-[ -f "$SRC/backend/main.py" ] && [ -f "$SRC/frontend/dist/index.html" ] || die "Das Paket ist unvollständig."
+[ -f "$SRC/backend/main.py" ] && [ -f "$SRC/backend/host.py" ] && [ -f "$SRC/frontend/dist/index.html" ] || die "Das Paket ist unvollständig."
 NEW_VERSION="$(cat "$SRC/VERSION" 2>/dev/null || echo '?')"
 OLD_VERSION="$(cat "$JB/VERSION" 2>/dev/null || echo '')"
 ok "Version $NEW_VERSION${OLD_VERSION:+ (bisher $OLD_VERSION)}"
